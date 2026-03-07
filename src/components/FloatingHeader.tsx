@@ -1,7 +1,12 @@
-import { Bus, Globe } from "lucide-react";
+import { useState } from "react";
+import { Bus, Globe, Navigation } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-const FloatingHeader = () => {
+interface Props {
+  onPlanTrip: () => void;
+}
+
+const FloatingHeader = ({ onPlanTrip }: Props) => {
   const { lang, t, toggleLang } = useI18n();
 
   return (
@@ -16,14 +21,25 @@ const FloatingHeader = () => {
           </h1>
         </div>
 
-        <button
-          onClick={toggleLang}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-accent text-sm font-medium text-foreground transition-colors"
-          aria-label="Toggle language"
-        >
-          <Globe className="w-4 h-4 text-muted-foreground" />
-          <span>{lang === "en" ? "ALB" : "ENG"}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onPlanTrip}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors hover:opacity-90"
+            aria-label={t.planTrip}
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{t.planTrip}</span>
+          </button>
+
+          <button
+            onClick={toggleLang}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary hover:bg-accent text-sm font-medium text-foreground transition-colors"
+            aria-label="Toggle language"
+          >
+            <Globe className="w-4 h-4 text-muted-foreground" />
+            <span>{lang === "en" ? "ALB" : "ENG"}</span>
+          </button>
+        </div>
       </div>
     </header>
   );
