@@ -1,13 +1,29 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useMemo } from "react";
+import { I18nContext, translations, type Lang } from "@/lib/i18n";
+import MapView from "@/components/MapView";
+import FloatingHeader from "@/components/FloatingHeader";
+import BottomSheet from "@/components/BottomSheet";
 
 const Index = () => {
+  const [lang, setLang] = useState<Lang>("en");
+
+  const i18n = useMemo(
+    () => ({
+      lang,
+      t: translations[lang],
+      toggleLang: () => setLang((l) => (l === "en" ? "sq" : "en")),
+    }),
+    [lang]
+  );
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <I18nContext.Provider value={i18n}>
+      <div className="relative w-full h-screen overflow-hidden">
+        <MapView />
+        <FloatingHeader />
+        <BottomSheet />
       </div>
-    </div>
+    </I18nContext.Provider>
   );
 };
 
