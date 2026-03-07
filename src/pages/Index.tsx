@@ -1,16 +1,21 @@
 import { useState, useMemo } from "react";
 import { I18nContext, translations, type Lang } from "@/lib/i18n";
+import { GTFSProvider } from "@/contexts/GTFSContext";
 import MapView from "@/components/MapView";
 import FloatingHeader from "@/components/FloatingHeader";
 import BottomSheet from "@/components/BottomSheet";
+import TripPlannerModal from "@/components/TripPlannerModal";
+import LoadingOverlay from "@/components/LoadingOverlay";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 const Index = () => {
   const [lang, setLang] = useState<Lang>("en");
+  const [tripPlannerOpen, setTripPlannerOpen] = useState(false);
 
   const i18n = useMemo(
     () => ({
       lang,
-      t: translations[lang],
+      t: translations[lang] as { [K in keyof typeof translations.en]: string },
       toggleLang: () => setLang((l) => (l === "en" ? "sq" : "en")),
     }),
     [lang]
@@ -18,11 +23,16 @@ const Index = () => {
 
   return (
     <I18nContext.Provider value={i18n}>
-      <div className="relative w-full h-screen overflow-hidden">
-        <MapView />
-        <FloatingHeader />
-        <BottomSheet />
-      </div>
+      <GTFSProvider>
+        <div className="relative w-full h-screen overflow-hidden">
+          <MapView />
+          <FloatingHeader onPlanTrip={() => setTripPlannerOpen(true)} />
+          <BottomSheet />
+          <LoadingOverlay />
+          <OfflineIndicator />
+          <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
+        </div>
+      </GTFSProvider>
     </I18nContext.Provider>
   );
 };
