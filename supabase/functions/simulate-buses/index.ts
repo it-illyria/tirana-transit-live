@@ -535,17 +535,22 @@ function updateBuses(state: BusState): SimulatedBus[] {
         newStatus = "in_transit";
       }
     }
-    // Reached the START of route (return terminus)
+    // Reached the START of route (return terminus — bus completed return trip)
     else if (newProgress <= 0.005) {
-      if (fleetFraction < 0.5 && !wasAtStop) {
-        return { ...bus, progress: 0.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      // After last departures: bus completed its return, park it
+      if (returnOnly && !movingForward) {
+        return { ...bus, progress: 0.0, speed: 0, status: "at_stop" as const, timestamp: Date.now(), moving_forward: false };
       }
 
       if (!wasAtStop) {
         newProgress = 0.0;
         newStatus = "at_stop";
       } else {
-        // Turn around: try opposite direction path, else reverse on same path
+        if (returnOnly) {
+          // Don't start new outbound — bus is parked
+          return { ...bus, progress: 0.0, speed: 0, status: "at_stop" as const, timestamp: Date.now(), moving_forward: false };
+        }
+        // Normal hours: turn around for new outbound trip
         const rpaths = routePaths.get(bus.route_id) || [];
         const oppositePath = rpaths.find(p => p.directionId !== directionId);
         if (oppositePath) {
@@ -553,7 +558,6 @@ function updateBuses(state: BusState): SimulatedBus[] {
           movingForward = true;
           newProgress = 0.0;
         } else {
-          // No opposite direction — reverse forward on same path
           movingForward = true;
           newProgress = progressDelta;
         }
