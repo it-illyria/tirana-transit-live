@@ -677,7 +677,7 @@ const MapView = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#111111" }} />
-                <span className="text-[11px] text-foreground font-medium">Severe congestion</span>
+                <span className="text-[11px] text-foreground font-medium">{t.severeCongestion}</span>
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-border">
