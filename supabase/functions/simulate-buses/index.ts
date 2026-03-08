@@ -547,17 +547,20 @@ Deno.serve(async (req) => {
     // Check operating hours first
     const fleetFraction = getFleetFraction();
     if (fleetFraction <= 0) {
-      // Service is not running — return empty with status info
-      const hour = new Date().getHours();
-      const nextService = hour >= SERVICE_END_HOUR
-        ? `${SERVICE_START_HOUR}:00 nesër` // tomorrow morning
-        : `${SERVICE_START_HOUR}:00`;
+      // Service is not running — compute exact resume timestamp (Tirana = Europe/Tirane, UTC+1/+2)
+      const now = new Date();
+      const resume = new Date(now);
+      resume.setHours(SERVICE_START_HOUR, 0, 0, 0);
+      // If we're past service start today, resume is tomorrow
+      if (now.getHours() >= SERVICE_START_HOUR) {
+        resume.setDate(resume.getDate() + 1);
+      }
       return new Response(JSON.stringify({
         buses: [],
         cached: false,
         serviceStatus: "night",
-        message: `Shërbimi i autobusëve nuk është aktiv. Rifillon në ${nextService}.`,
-        nextServiceStart: nextService,
+        message: `Shërbimi i autobusëve nuk është aktiv.`,
+        resumesAt: resume.toISOString(),
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

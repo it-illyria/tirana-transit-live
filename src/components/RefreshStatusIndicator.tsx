@@ -1,12 +1,38 @@
 import { useState, useEffect } from "react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { useI18n } from "@/lib/i18n";
-import { Wifi, WifiOff, Database, Moon, Radio } from "lucide-react";
+import { Wifi, WifiOff, Database, Moon, Radio, Clock } from "lucide-react";
+
+function useCountdown(targetIso: string | undefined) {
+  const [remaining, setRemaining] = useState("");
+
+  useEffect(() => {
+    if (!targetIso) return;
+    const target = new Date(targetIso).getTime();
+
+    const tick = () => {
+      const diff = Math.max(0, target - Date.now());
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setRemaining(
+        h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`
+      );
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetIso]);
+
+  return remaining;
+}
 
 const RefreshStatusIndicator = () => {
   const { t } = useI18n();
   const { refreshStatus } = useGTFS();
   const [secondsAgo, setSecondsAgo] = useState<number | null>(null);
+  const countdown = useCountdown(refreshStatus.resumesAt);
 
   useEffect(() => {
     if (!refreshStatus.lastRefresh) return;
@@ -27,8 +53,17 @@ const RefreshStatusIndicator = () => {
       <div className="absolute bottom-4 left-3 z-[1000] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg glass-surface shadow-float text-[11px] font-medium select-none">
         <Moon className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-muted-foreground">
-          {refreshStatus.serviceMessage || "Shërbimi nuk është aktiv"}
+          {refreshStatus.serviceMessage || t.serviceNotActive}
         </span>
+        {countdown && (
+          <>
+            <span className="text-muted-foreground/40">·</span>
+            <span className="flex items-center gap-1 text-primary">
+              <Clock className="w-3 h-3" />
+              {countdown}
+            </span>
+          </>
+        )}
       </div>
     );
   }
