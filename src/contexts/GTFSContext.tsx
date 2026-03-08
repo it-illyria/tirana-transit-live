@@ -23,6 +23,8 @@ interface GTFSContextType {
   setSelectedRouteId: (id: string | null) => void;
   selectedBusId: string | null;
   setSelectedBusId: (id: string | null) => void;
+  focusStopId: string | null;
+  setFocusStopId: (id: string | null) => void;
   retry: () => void;
 }
 
@@ -37,6 +39,8 @@ const GTFSContext = createContext<GTFSContextType>({
   setSelectedRouteId: () => {},
   selectedBusId: null,
   setSelectedBusId: () => {},
+  focusStopId: null,
+  setFocusStopId: () => {},
   retry: () => {},
 });
 
@@ -56,6 +60,7 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
   });
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+  const [focusStopId, setFocusStopId] = useState<string | null>(null);
   const pollInterval = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
@@ -121,6 +126,8 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
         setSelectedRouteId,
         selectedBusId,
         setSelectedBusId,
+        focusStopId,
+        setFocusStopId,
         retry: fetchData,
       }}
     >

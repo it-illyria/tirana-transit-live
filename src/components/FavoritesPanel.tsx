@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import { Star, MapPin, X, AlertTriangle, Clock } from "lucide-react";
+import { Star, MapPin, X, AlertTriangle, Clock, Navigation } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites, toggleFavorite } from "@/lib/favorites";
 import { predictArrivals } from "@/lib/arrival-predictions";
@@ -13,7 +13,7 @@ interface Props {
 
 const FavoritesPanel = ({ open, onClose }: Props) => {
   const { t } = useI18n();
-  const { data, buses } = useGTFS();
+  const { data, buses, setFocusStopId } = useGTFS();
   const [favIds, setFavIds] = useState<string[]>([]);
 
   // Re-read favorites when panel opens or buses update (triggers re-render)
@@ -71,6 +71,10 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
                 key={stop.stop_id}
                 stop={stop}
                 onRemove={() => handleRemove(stop.stop_id)}
+                onLocate={() => {
+                  setFocusStopId(stop.stop_id);
+                  onClose();
+                }}
               />
             ))
           )}
@@ -83,9 +87,11 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
 function FavStopCard({
   stop,
   onRemove,
+  onLocate,
 }: {
   stop: { stop_id: string; stop_name: string };
   onRemove: () => void;
+  onLocate: () => void;
 }) {
   const { t } = useI18n();
   const { data, buses } = useGTFS();
@@ -104,10 +110,14 @@ function FavStopCard({
     <div className="rounded-xl bg-secondary/50 border border-border p-3">
       {/* Stop header */}
       <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={onLocate}
+          className="flex items-center gap-2 min-w-0 hover:opacity-70 transition-opacity"
+        >
           <MapPin className="w-4 h-4 text-primary shrink-0" />
           <span className="text-sm font-semibold text-foreground truncate">{stop.stop_name}</span>
-        </div>
+          <Navigation className="w-3 h-3 text-muted-foreground shrink-0" />
+        </button>
         <button
           onClick={onRemove}
           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
