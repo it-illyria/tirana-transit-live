@@ -356,14 +356,13 @@ function updateBuses(state: BusState): SimulatedBus[] {
     let newStatus: SimulatedBus["status"] = "in_transit";
 
     // When bus reaches the end of the route, hold at terminus then restart
-    if (newProgress >= 0.98) {
+    // On round-trip routes the last point ≈ first point, so 1.0 → 0.0 is seamless
+    if (newProgress >= 0.995) {
       if (!wasAtStop) {
-        // First time reaching end — pause at terminus
-        newProgress = 0.99;
+        newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        // Was already paused at terminus — restart from beginning
-        newProgress = 0.01;
+        newProgress = 0.0;
         newStatus = "in_transit";
       }
     } else {
