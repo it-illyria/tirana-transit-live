@@ -35,31 +35,54 @@ const stopIcon = new L.DivIcon({
 
 // Bus icon factory with cache to avoid re-creating DivIcon objects
 const busIconCache = new Map<string, L.DivIcon>();
-function createBusIcon(color: string, heading: number) {
+function createBusIcon(color: string, heading: number, directionLabel?: string) {
   // Round heading to nearest 10° to limit cache entries
   const roundedHeading = Math.round(heading / 10) * 10;
-  const key = `${color}_${roundedHeading}`;
+  const label = directionLabel || "";
+  const key = `${color}_${roundedHeading}_${label}`;
   let icon = busIconCache.get(key);
   if (!icon) {
+    const labelHtml = label
+      ? `<div style="
+          position:absolute;
+          top:22px;left:50%;transform:translateX(-50%);
+          font-size:8px;font-weight:700;
+          color:${color};
+          background:white;
+          padding:0px 3px;
+          border-radius:3px;
+          white-space:nowrap;
+          box-shadow:0 1px 2px rgba(0,0,0,0.2);
+          line-height:12px;
+          pointer-events:none;
+        ">${label}</div>`
+      : "";
     icon = new L.DivIcon({
       className: "bus-marker",
       html: `<div style="
-        width:22px;height:22px;
-        display:flex;align-items:center;justify-content:center;
-        transform:rotate(${roundedHeading}deg);
-        transition:transform 0.5s ease;
-        filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+        width:22px;height:36px;
+        display:flex;align-items:flex-start;justify-content:center;
+        position:relative;
       ">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
+        <div style="
+          width:22px;height:22px;
+          display:flex;align-items:center;justify-content:center;
+          transform:rotate(${roundedHeading}deg);
+          transition:transform 0.5s ease;
+          filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+        ">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        ${labelHtml}
       </div>`,
-      iconSize: [22, 22],
+      iconSize: [22, 36],
       iconAnchor: [11, 11],
     });
     busIconCache.set(key, icon);
     // Limit cache size
-    if (busIconCache.size > 500) {
+    if (busIconCache.size > 1000) {
       const first = busIconCache.keys().next().value;
       if (first) busIconCache.delete(first);
     }
@@ -539,7 +562,7 @@ const MapView = () => {
           <Marker
             key={bus.vehicle_id}
             position={[bus.latitude, bus.longitude]}
-            icon={createBusIcon(bus.route_color, bus.heading)}
+            icon={createBusIcon(bus.route_color, bus.heading, bus.moving_forward ? "Vajtje" : "Kthim")}
           >
             <Popup>
               <div style={{ minWidth: 160 }}>
@@ -562,7 +585,7 @@ const MapView = () => {
                   }}>{bus.status === "at_stop" ? t.atStop : bus.status === "delayed" ? t.delayed : t.inTransit}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#666" }}>
-                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h · <span style={{ color: bus.direction_id === "0" ? "#3b82f6" : "#a855f7", fontWeight: 600 }}>{bus.direction_id === "0" ? "Outbound" : "Return"}</span>
+                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h · <span style={{ color: bus.moving_forward ? "#3b82f6" : "#a855f7", fontWeight: 600 }}>{bus.moving_forward ? "Vajtje" : "Kthim"}</span>
                 </div>
                 {bus.next_stop_name && (
                   <div style={{ fontSize: 11, marginTop: 4 }}>
@@ -723,6 +746,14 @@ const MapView = () => {
           </div>
         )}
       </MapContainer>
+
+      {/* Simulation disclaimer banner */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border shadow-sm">
+        <p className="text-[10px] text-muted-foreground text-center leading-tight">
+          ⚠️ Pozicionet e autobusëve janë të simuluara · Bus positions are simulated
+        </p>
+      </div>
+
       <RefreshStatusIndicator />
     </div>
   );
