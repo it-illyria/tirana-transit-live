@@ -244,7 +244,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                         background: congestionColor(p.congestionLevel),
                         display: "inline-block",
                       }} />
-                      Traffic: {p.congestionLevel}
+                      {t.traffic}: {p.congestionLevel}
                     </span>
                     {p.delayMinutes > 0 && (
                       <>
