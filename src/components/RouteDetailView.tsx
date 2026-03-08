@@ -160,13 +160,19 @@ const RouteDetailView = () => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-base font-bold text-foreground">{route.route_short_name} {route.route_long_name}</p>
-            <div className="flex items-center gap-3 mt-0.5">
+            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               <span className="text-xs text-primary font-semibold">
                 🚌 {routeBuses.length} active
               </span>
               <span className="text-xs text-muted-foreground">
                 {routeStops.length} stops
               </span>
+              {interStopMinutes.length > 0 && (
+                <span className="text-xs font-semibold text-foreground flex items-center gap-0.5">
+                  <Timer className="w-3 h-3" />
+                  {interStopMinutes.reduce((a, b) => a + b, 0)} min total
+                </span>
+              )}
             </div>
           </div>
           <button
