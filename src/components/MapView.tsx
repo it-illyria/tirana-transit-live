@@ -124,6 +124,23 @@ function CenterOnBus() {
   return null;
 }
 
+// Center map on a specific stop (triggered from favorites panel)
+function CenterOnStop() {
+  const map = useMap();
+  const { data, focusStopId, setFocusStopId } = useGTFS();
+
+  useEffect(() => {
+    if (!focusStopId || !data) return;
+    const stop = data.stops.find((s) => s.stop_id === focusStopId);
+    if (stop) {
+      map.flyTo([stop.stop_lat, stop.stop_lon], 17, { duration: 0.5 });
+    }
+    setFocusStopId(null);
+  }, [focusStopId, data, map, setFocusStopId]);
+
+  return null;
+}
+
 const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number }; data: any }) => {
   const { t } = useI18n();
   const { buses } = useGTFS();
