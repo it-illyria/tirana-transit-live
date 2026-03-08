@@ -1,0 +1,450 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import JSZip from "https://esm.sh/jszip@3.10.1";
+import Papa from "https://esm.sh/papaparse@5.5.3";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface SimulatedBus {
+  vehicle_id: string;
+  route_id: string;
+  trip_id: string;
+  latitude: number;
+  longitude: number;
+  heading: number;
+  speed: number;
+  timestamp: number;
+  route_color: string;
+  route_name: string;
+  progress: number;
+  next_stop_name: string;
+  next_stop_id: string;
+  eta_minutes: number;
+  status: "in_transit" | "at_stop" | "delayed";
+  passengers: number;
+  direction_id: string;
+}
+
+interface RoutePath {
+  routeId: string;
+  tripId: string;
+  directionId: string;
+  points: [number, number][];
+  totalDistance: number;
+  segmentDistances: number[];
+  stops: { stopId: string; name: string; distanceAlong: number }[];
+  routeColor: string;
+  routeName: string;
+}
+
+interface BusState {
+  buses: SimulatedBus[];
+  paths: RoutePath[];
+  lastUpdate: number;
+}
+
+// ─── Redis helpers ───────────────────────────────────────────────────────────
+
+async function redisGet(url: string, token: string, key: string): Promise<string | null> {
+  const res = await fetch(`${url}/get/${key}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  return data.result ?? null;
+}
+
+async function redisSet(url: string, token: string, key: string, value: string, exSeconds?: number): Promise<void> {
+  const parts = [key, value];
+  if (exSeconds) parts.push("EX", String(exSeconds));
+  await fetch(`${url}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(["SET", ...parts]),
+  });
+}
+
+// ─── Geo math ────────────────────────────────────────────────────────────────
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function bearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos((lat2 * Math.PI) / 180);
+  const x =
+    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+function interpolateAlongPath(
+  points: [number, number][],
+  segmentDistances: number[],
+  totalDistance: number,
+  progress: number,
+): { lat: number; lon: number; heading: number } {
+  const targetDist = progress * totalDistance;
+  let accumulated = 0;
+  for (let i = 0; i < segmentDistances.length; i++) {
+    if (accumulated + segmentDistances[i] >= targetDist) {
+      const f = segmentDistances[i] > 0 ? (targetDist - accumulated) / segmentDistances[i] : 0;
+      const [lat1, lon1] = points[i];
+      const [lat2, lon2] = points[i + 1];
+      return {
+        lat: lat1 + (lat2 - lat1) * f,
+        lon: lon1 + (lon2 - lon1) * f,
+        heading: bearing(lat1, lon1, lat2, lon2),
+      };
+    }
+    accumulated += segmentDistances[i];
+  }
+  const last = points[points.length - 1];
+  const prev = points[Math.max(0, points.length - 2)];
+  return { lat: last[0], lon: last[1], heading: bearing(prev[0], prev[1], last[0], last[1]) };
+}
+
+// ─── Speed ───────────────────────────────────────────────────────────────────
+
+const BASE_SPEED_KMH = 18;
+
+function getSpeedMultiplier(): number {
+  const hour = new Date().getHours();
+  if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) return 0.6;
+  if (hour >= 22 || hour <= 6) return 1.3;
+  return 1.0;
+}
+
+// ─── GTFS parsing ────────────────────────────────────────────────────────────
+
+function parseCSV<T>(text: string): T[] {
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+  return result.data as T[];
+}
+
+async function loadGTFS(supabase: any) {
+  const { data, error } = await supabase.storage.from("gtfs-cache").download("al_tirana.gtfs.zip");
+  if (error || !data) throw new Error("GTFS cache not found – call fetch-gtfs first");
+
+  const buf = await data.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const read = async (name: string) => {
+    const f = zip.file(name);
+    return f ? f.async("text") : "";
+  };
+
+  const routesRaw = parseCSV<Record<string, string>>(await read("routes.txt"));
+  const routes = routesRaw.map((r: any) => ({
+    route_id: r.route_id || "",
+    route_short_name: r.route_short_name || "",
+    route_long_name: r.route_long_name || "",
+    route_color: r.route_color ? `#${r.route_color}` : "#0066CC",
+    route_type: r.route_type || "3",
+  }));
+
+  const stopsRaw = parseCSV<Record<string, string>>(await read("stops.txt"));
+  const stops = stopsRaw
+    .filter((s: any) => s.stop_lat && s.stop_lon)
+    .map((s: any) => ({
+      stop_id: s.stop_id || "",
+      stop_name: s.stop_name || "",
+      stop_lat: parseFloat(s.stop_lat),
+      stop_lon: parseFloat(s.stop_lon),
+    }));
+
+  const tripsRaw = parseCSV<Record<string, string>>(await read("trips.txt"));
+  const trips = tripsRaw.map((t: any) => ({
+    trip_id: t.trip_id || "",
+    route_id: t.route_id || "",
+    service_id: t.service_id || "",
+    trip_headsign: t.trip_headsign || "",
+    direction_id: t.direction_id || "0",
+    shape_id: t.shape_id || "",
+  }));
+
+  const stRaw = parseCSV<Record<string, string>>(await read("stop_times.txt"));
+  const stopTimes = stRaw.map((s: any) => ({
+    trip_id: s.trip_id || "",
+    arrival_time: s.arrival_time || "",
+    departure_time: s.departure_time || "",
+    stop_id: s.stop_id || "",
+    stop_sequence: parseInt(s.stop_sequence) || 0,
+  }));
+
+  const shapesText = await read("shapes.txt");
+  const shapes = shapesText
+    ? parseCSV<Record<string, string>>(shapesText).map((s: any) => ({
+        shape_id: s.shape_id || "",
+        shape_pt_lat: parseFloat(s.shape_pt_lat),
+        shape_pt_lon: parseFloat(s.shape_pt_lon),
+        shape_pt_sequence: parseInt(s.shape_pt_sequence) || 0,
+      }))
+    : [];
+
+  return { routes, stops, trips, stopTimes, shapes };
+}
+
+// ─── Build route paths ──────────────────────────────────────────────────────
+
+function buildRoutePaths(data: any): RoutePath[] {
+  const paths: RoutePath[] = [];
+  const routeMap = new Map(data.routes.map((r: any) => [r.route_id, r]));
+  const stopMap = new Map(data.stops.map((s: any) => [s.stop_id, s]));
+
+  const shapeGroups = new Map<string, any[]>();
+  for (const s of data.shapes) {
+    const g = shapeGroups.get(s.shape_id) || [];
+    g.push(s);
+    shapeGroups.set(s.shape_id, g);
+  }
+
+  const seenRouteDir = new Set<string>();
+  const selected: any[] = [];
+  for (const trip of data.trips) {
+    const key = `${trip.route_id}_${trip.direction_id}`;
+    if (seenRouteDir.has(key)) continue;
+    seenRouteDir.add(key);
+    selected.push(trip);
+  }
+
+  const tripStopTimes = new Map<string, any[]>();
+  for (const st of data.stopTimes) {
+    const arr = tripStopTimes.get(st.trip_id) || [];
+    arr.push({ stop_id: st.stop_id, seq: st.stop_sequence });
+    tripStopTimes.set(st.trip_id, arr);
+  }
+
+  for (const sel of selected) {
+    const route: any = routeMap.get(sel.route_id);
+    if (!route) continue;
+
+    let points: [number, number][] = [];
+    const sp = shapeGroups.get(sel.shape_id);
+    if (sp && sp.length > 1) {
+      points = sp
+        .sort((a: any, b: any) => a.shape_pt_sequence - b.shape_pt_sequence)
+        .map((s: any) => [s.shape_pt_lat, s.shape_pt_lon] as [number, number]);
+    } else {
+      const ts = tripStopTimes.get(sel.trip_id);
+      if (!ts || ts.length < 2) continue;
+      ts.sort((a: any, b: any) => a.seq - b.seq);
+      points = ts
+        .map((t: any) => {
+          const s: any = stopMap.get(t.stop_id);
+          return s ? ([s.stop_lat, s.stop_lon] as [number, number]) : null;
+        })
+        .filter(Boolean) as [number, number][];
+    }
+    if (points.length < 2) continue;
+
+    const segmentDistances: number[] = [];
+    let totalDistance = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const d = haversine(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1]);
+      segmentDistances.push(d);
+      totalDistance += d;
+    }
+    if (totalDistance < 0.1) continue;
+
+    const ts = tripStopTimes.get(sel.trip_id) || [];
+    ts.sort((a: any, b: any) => a.seq - b.seq);
+    const stopsAlongRoute: RoutePath["stops"] = [];
+    for (const t of ts) {
+      const stop: any = stopMap.get(t.stop_id);
+      if (!stop) continue;
+      let minDist = Infinity, bestAlong = 0, acc = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        const d = haversine(stop.stop_lat, stop.stop_lon, points[i][0], points[i][1]);
+        if (d < minDist) { minDist = d; bestAlong = acc; }
+        acc += segmentDistances[i];
+      }
+      const dLast = haversine(stop.stop_lat, stop.stop_lon, points[points.length - 1][0], points[points.length - 1][1]);
+      if (dLast < minDist) bestAlong = totalDistance;
+      stopsAlongRoute.push({ stopId: t.stop_id, name: stop.stop_name, distanceAlong: bestAlong / totalDistance });
+    }
+    stopsAlongRoute.sort((a, b) => a.distanceAlong - b.distanceAlong);
+
+    paths.push({
+      routeId: sel.route_id,
+      tripId: sel.trip_id,
+      directionId: sel.direction_id,
+      points,
+      totalDistance,
+      segmentDistances,
+      stops: stopsAlongRoute,
+      routeColor: route.route_color,
+      routeName: route.route_short_name || route.route_long_name,
+    });
+  }
+  return paths;
+}
+
+// ─── Generate initial buses ──────────────────────────────────────────────────
+
+function generateBuses(paths: RoutePath[]): SimulatedBus[] {
+  const buses: SimulatedBus[] = [];
+  let idx = 0;
+  for (const path of paths) {
+    const count = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+    for (let b = 0; b < count; b++) {
+      const progress = (b / count + Math.random() * 0.05) % 1;
+      const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, progress);
+      const sm = getSpeedMultiplier();
+      const nextStop = path.stops.find((s) => s.distanceAlong > progress) || path.stops[path.stops.length - 1];
+      const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - progress) * path.totalDistance : 0;
+      const eta = distToNext > 0 ? (distToNext / (BASE_SPEED_KMH * sm)) * 60 : 0;
+
+      buses.push({
+        vehicle_id: `TR-${String(idx++).padStart(3, "0")}`,
+        route_id: path.routeId,
+        trip_id: path.tripId,
+        latitude: pos.lat,
+        longitude: pos.lon,
+        heading: pos.heading,
+        speed: BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4),
+        timestamp: Date.now(),
+        route_color: path.routeColor,
+        route_name: path.routeName,
+        progress,
+        next_stop_name: nextStop?.name || "",
+        next_stop_id: nextStop?.stopId || "",
+        eta_minutes: Math.round(eta),
+        status: Math.random() < 0.1 ? "at_stop" : "in_transit",
+        passengers: Math.floor(Math.random() * 50) + 5,
+        direction_id: path.directionId,
+      });
+    }
+  }
+  return buses;
+}
+
+// ─── Update bus positions ────────────────────────────────────────────────────
+
+function updateBuses(state: BusState): SimulatedBus[] {
+  const pathMap = new Map<string, RoutePath>();
+  for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
+
+  const elapsed = (Date.now() - state.lastUpdate) / 1000; // actual seconds since last update
+  const sm = getSpeedMultiplier();
+
+  return state.buses.map((bus) => {
+    const path = pathMap.get(`${bus.route_id}_${bus.direction_id}`);
+    if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
+
+    const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
+    const distKm = (speed * elapsed) / 3600;
+    const progressDelta = distKm / path.totalDistance;
+    let newProgress = bus.progress + progressDelta;
+
+    const wasAtStop = bus.status === "at_stop";
+    let newStatus: SimulatedBus["status"] = "in_transit";
+    const nearStop = path.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
+    if (nearStop && !wasAtStop && Math.random() < 0.4) {
+      newStatus = "at_stop";
+      newProgress = bus.progress;
+    }
+    if (newProgress >= 1) newProgress -= 1;
+
+    const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
+    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[path.stops.length - 1];
+    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance : 0;
+    const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
+    const pDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
+
+    return {
+      ...bus,
+      latitude: pos.lat,
+      longitude: pos.lon,
+      heading: pos.heading,
+      speed: newStatus === "at_stop" ? 0 : speed,
+      timestamp: Date.now(),
+      progress: newProgress,
+      next_stop_name: nextStop?.name || bus.next_stop_name,
+      next_stop_id: nextStop?.stopId || bus.next_stop_id,
+      eta_minutes: Math.round(eta),
+      status: newStatus,
+      passengers: Math.max(0, Math.min(60, bus.passengers + pDelta)),
+    };
+  });
+}
+
+// ─── Main handler ────────────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const REDIS_URL = Deno.env.get("UPSTASH_REDIS_REST_URL");
+  const REDIS_TOKEN = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+  if (!REDIS_URL || !REDIS_TOKEN) {
+    return new Response(JSON.stringify({ error: "Redis not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    // Try Redis cache first
+    const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state");
+    if (cached) {
+      const state: BusState = JSON.parse(cached);
+      const age = Date.now() - state.lastUpdate;
+
+      if (age < 8000) {
+        // Fresh enough – return as-is
+        return new Response(JSON.stringify({ buses: state.buses, cached: true, age }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Stale – update positions
+      const updatedBuses = updateBuses(state);
+      const newState: BusState = { buses: updatedBuses, paths: state.paths, lastUpdate: Date.now() };
+      await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(newState), 300);
+
+      return new Response(JSON.stringify({ buses: updatedBuses, cached: false, age }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // No cache – initialize from GTFS
+    console.log("Initializing bus simulation from GTFS...");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const gtfs = await loadGTFS(supabase);
+    const paths = buildRoutePaths(gtfs);
+    const buses = generateBuses(paths);
+
+    // Store paths without the heavy points data for subsequent updates
+    const state: BusState = { buses, paths, lastUpdate: Date.now() };
+    await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(state), 300);
+
+    return new Response(JSON.stringify({ buses, cached: false, initialized: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("simulate-buses error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

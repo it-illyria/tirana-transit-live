@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import type { GTFSData, SimulatedBus } from "@/lib/gtfs-types";
 import { loadGTFSData } from "@/lib/gtfs-loader";
-import { generateSimulatedBuses, updateBusPositions } from "@/lib/bus-simulator";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const BUS_POLL_INTERVAL = 10000; // 10 seconds
 
 interface GTFSContextType {
   data: GTFSData | null;
@@ -39,8 +41,7 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
   const [buses, setBuses] = useState<SimulatedBus[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
-  const busInterval = useRef<ReturnType<typeof setInterval>>();
-  const dataRef = useRef<GTFSData | null>(null);
+  const pollInterval = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -48,9 +49,6 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
     try {
       const gtfs = await loadGTFSData(setProgress);
       setData(gtfs);
-      dataRef.current = gtfs;
-      const initialBuses = generateSimulatedBuses(gtfs);
-      setBuses(initialBuses);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -59,24 +57,38 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Fetch bus positions from server
+  const fetchBuses = useCallback(async () => {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/simulate-buses`);
+      if (!res.ok) {
+        console.error("Bus fetch failed:", res.status);
+        return;
+      }
+      const json = await res.json();
+      if (json.buses && Array.isArray(json.buses)) {
+        setBuses(json.buses);
+      }
+    } catch (e) {
+      console.error("Bus poll error:", e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Update bus positions every 10 seconds
+  // Poll server for bus positions every 10s
   useEffect(() => {
-    if (!data) return;
-    busInterval.current = setInterval(() => {
-      setBuses((prev) => {
-        if (!dataRef.current) return prev;
-        return updateBusPositions(prev, dataRef.current);
-      });
-    }, 10000);
+    // Initial fetch
+    fetchBuses();
+
+    pollInterval.current = setInterval(fetchBuses, BUS_POLL_INTERVAL);
 
     return () => {
-      if (busInterval.current) clearInterval(busInterval.current);
+      if (pollInterval.current) clearInterval(pollInterval.current);
     };
-  }, [data]);
+  }, [fetchBuses]);
 
   return (
     <GTFSContext.Provider
