@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
-import { Search, ChevronUp, MapPin, Bus, Star, Clock } from "lucide-react";
+import { Search, ChevronUp, MapPin, Bus, Star, Clock, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites } from "@/lib/favorites";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
+import { predictArrivals } from "@/lib/arrival-predictions";
 
 type Tab = "routes" | "buses" | "favorites";
 
