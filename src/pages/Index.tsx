@@ -8,6 +8,7 @@ import RouteDetailView from "@/components/RouteDetailView";
 import TripPlannerModal from "@/components/TripPlannerModal";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import NearestStopWidget from "@/components/NearestStopWidget";
 import { useFavoriteAlerts } from "@/hooks/useFavoriteAlerts";
 
 function FavoriteAlertsRunner() {
