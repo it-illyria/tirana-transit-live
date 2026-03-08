@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Bell, Bus, Globe, Navigation } from "lucide-react";
+import { Bell, Bus, Globe, Navigation, Moon, Sun } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/hooks/use-theme";
 import NotificationSettingsPanel from "@/components/NotificationSettingsPanel";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 const FloatingHeader = ({ onPlanTrip }: Props) => {
   const { lang, t, toggleLang } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <>
@@ -24,7 +26,15 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Toggle dark mode"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             <button
               onClick={() => setNotifOpen(true)}
               className="p-2 rounded-lg bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"

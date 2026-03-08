@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
 import { Locate, Maximize, Minimize, Layers, Filter } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
+import { useTheme } from "@/hooks/use-theme";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
 import { predictArrivals, CONGESTION_ZONES, getCongestionLevel, getCongestionFactor, getTimeMultiplier, type ArrivalPrediction } from "@/lib/arrival-predictions";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
@@ -275,6 +276,7 @@ StopMarker.displayName = "StopMarker";
 
 const MapView = () => {
   const { data, buses, selectedRouteId } = useGTFS();
+  const { theme } = useTheme();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
   const [showCongestion, setShowCongestion] = useState(false);
@@ -474,8 +476,12 @@ const MapView = () => {
         className="w-full h-full"
       >
         <TileLayer
+          key={theme}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | GTFS: Municipality of Tirana (CC-BY-SA-4.0)'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={theme === "dark"
+            ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
         />
 
         <ViewportTracker onBoundsChange={(b) => {
