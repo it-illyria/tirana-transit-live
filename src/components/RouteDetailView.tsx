@@ -10,7 +10,6 @@ function useTiranaClock() {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  // Format in Europe/Tirane timezone
   const formatted = now.toLocaleTimeString("en-GB", {
     timeZone: "Europe/Tirane",
     hour: "2-digit",
@@ -24,7 +23,16 @@ function useTiranaClock() {
     month: "short",
     year: "numeric",
   });
-  return { now, formatted, dateFormatted };
+  // Get Tirana hours & minutes for calculations
+  const tiranaHM = now.toLocaleTimeString("en-GB", {
+    timeZone: "Europe/Tirane",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const [h, m] = tiranaHM.split(":").map(Number);
+  const tiranaMinutes = h * 60 + m;
+  return { now, formatted, dateFormatted, tiranaMinutes };
 }
 
 /** Countdown hook — re-renders every second */
@@ -68,7 +76,7 @@ function CountdownBadge({ minutes }: { minutes: number }) {
 
 const RouteDetailView = () => {
   const { data, buses, selectedRouteId, setSelectedRouteId, setSelectedBusId } = useGTFS();
-  const { formatted: tiranaTime, dateFormatted: tiranaDate } = useTiranaClock();
+  const { formatted: tiranaTime, dateFormatted: tiranaDate, tiranaMinutes } = useTiranaClock();
 
   const route = useMemo(() => {
     if (!data || !selectedRouteId) return null;
@@ -183,6 +191,21 @@ const RouteDetailView = () => {
       return Math.max(1, Math.round(minutes));
     });
   }, [routeStops]);
+
+  // Compute real-time ETA for each stop based on current Tirana time
+  const realtimeETAs = useMemo(() => {
+    if (routeStops.length === 0 || interStopMinutes.length === 0) return [];
+    const etas: string[] = [];
+    let cumulative = 0;
+    for (let i = 0; i < routeStops.length; i++) {
+      const totalMin = tiranaMinutes + cumulative;
+      const h = Math.floor(totalMin / 60) % 24;
+      const m = totalMin % 60;
+      etas.push(`${h.toString().padStart(2, "0")}:${Math.floor(m).toString().padStart(2, "0")}`);
+      if (i < interStopMinutes.length) cumulative += interStopMinutes[i];
+    }
+    return etas;
+  }, [routeStops, interStopMinutes, tiranaMinutes]);
 
   if (!selectedRouteId || !route) return null;
 
@@ -308,10 +331,12 @@ const RouteDetailView = () => {
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           <Clock className="w-2.5 h-2.5 inline mr-0.5" />
-                          {formatTime(stop.arrival_time)}
-                          {stop.departure_time !== stop.arrival_time && (
-                            <span> → {formatTime(stop.departure_time)}</span>
-                          )}
+                          <span className="font-mono font-semibold text-foreground">
+                            {realtimeETAs[idx] || formatTime(stop.arrival_time)}
+                          </span>
+                          <span className="ml-1 text-muted-foreground/60">
+                            (sched. {formatTime(stop.arrival_time)})
+                          </span>
                         </p>
                       </div>
                     </div>
