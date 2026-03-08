@@ -96,6 +96,16 @@ export const translations = {
     selectStop: "Zgjidh një stacion",
     arriving: "Duke mbërritur",
     scheduled: "I planifikuar",
+    notifSettings: "Cilësimet e Njoftimeve",
+    arrivalAlerts: "Njoftime mbërritjeje",
+    arrivalAlertsDesc: "Njofto kur autobusi afrohet në stacionin e preferuar",
+    alertThreshold: "Pragu i njoftimit",
+    alertThresholdDesc: "Njoftohuni kur autobusi është brenda {min} nga stacioni juaj",
+    notifBlocked: "Njoftimet janë bllokuar",
+    notifBlockedDesc: "Ju lutem aktivizoni njoftimet në cilësimet e shfletuesit.",
+    notifPermRequired: "Nevojitet leja",
+    notifPermRequiredDesc: "Lejoni njoftimet e shfletuesit për të marrë alarme.",
+    allowNotifications: "Lejo njoftimet",
   },
 } as const;
 
