@@ -627,20 +627,31 @@ Deno.serve(async (req) => {
     // Check operating hours first
     const fleetFraction = getFleetFraction();
     if (fleetFraction <= 0) {
-      // Service is not running — compute exact resume timestamp (Tirana = Europe/Tirane, UTC+1/+2)
-      const now = new Date();
-      const resume = new Date(now);
-      resume.setHours(SERVICE_START_HOUR, 0, 0, 0);
-      // If we're past service start today, resume is tomorrow
-      if (now.getHours() >= SERVICE_START_HOUR) {
-        resume.setDate(resume.getDate() + 1);
+      // Service is not running — compute resume time in Tirana timezone
+      const tiranaNow = getTiranaTime();
+      const tiranaHour = tiranaNow.getHours();
+
+      // Next service start: today at 5:00 if before 5am, otherwise tomorrow 5:00
+      const resumeLocal = new Date(tiranaNow);
+      resumeLocal.setHours(SERVICE_START_HOUR, 0, 0, 0);
+      if (tiranaHour >= SERVICE_START_HOUR) {
+        resumeLocal.setDate(resumeLocal.getDate() + 1);
       }
+
+      // Convert Tirana local back to UTC for ISO string
+      // Get the offset: Tirana is UTC+1 (CET) or UTC+2 (CEST)
+      const nowUtc = new Date();
+      const tiranaOffset = (tiranaNow.getTime() - nowUtc.getTime()); // approximate ms offset
+      const resumeUtc = new Date(resumeLocal.getTime() - tiranaOffset + nowUtc.getTime() - tiranaNow.getTime());
+      // Simpler: just send the local time as a string for the client
+      const resumeIso = `${resumeLocal.getFullYear()}-${String(resumeLocal.getMonth() + 1).padStart(2, "0")}-${String(resumeLocal.getDate()).padStart(2, "0")}T${String(SERVICE_START_HOUR).padStart(2, "0")}:00:00+01:00`;
+
       return new Response(JSON.stringify({
         buses: [],
         cached: false,
         serviceStatus: "night",
         message: `Shërbimi i autobusëve nuk është aktiv.`,
-        resumesAt: resume.toISOString(),
+        resumesAt: resumeIso,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
