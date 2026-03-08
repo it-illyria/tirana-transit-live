@@ -469,6 +469,64 @@ function updateBuses(state: BusState): SimulatedBus[] {
   });
 }
 
+// ─── GTFS-RT probe ──────────────────────────────────────────────────────────
+// Tirana has GTFS-RT integrated with Google Maps via ATD/GIZ, but the feed
+// is not publicly accessible. We probe known endpoint patterns and fall back
+// to simulation if unavailable.
+
+const GTFS_RT_ENDPOINTS = [
+  "https://pt.tirana.al/gtfs-rt/vehicle-positions",
+  "https://pt.tirana.al/gtfs-rt/vehiclepositions.pb",
+  "https://pt.tirana.al/api/realtime/vehicle-positions",
+];
+
+async function tryGtfsRt(): Promise<SimulatedBus[] | null> {
+  for (const url of GTFS_RT_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(3000),
+        headers: { "Accept": "application/x-protobuf, application/json" },
+      });
+      if (!res.ok) continue;
+
+      // If we get JSON back, try to parse vehicle positions
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("json")) {
+        const data = await res.json();
+        if (data.entity && Array.isArray(data.entity)) {
+          console.log(`GTFS-RT feed found at ${url} with ${data.entity.length} vehicles`);
+          return data.entity
+            .filter((e: any) => e.vehicle?.position)
+            .map((e: any, i: number) => ({
+              vehicle_id: e.vehicle?.vehicle?.id || `RT-${i}`,
+              route_id: e.vehicle?.trip?.routeId || "",
+              trip_id: e.vehicle?.trip?.tripId || "",
+              latitude: e.vehicle.position.latitude,
+              longitude: e.vehicle.position.longitude,
+              heading: e.vehicle.position.bearing || 0,
+              speed: (e.vehicle.position.speed || 0) * 3.6,
+              timestamp: Date.now(),
+              route_color: "#0066CC",
+              route_name: e.vehicle?.trip?.routeId || "?",
+              progress: 0.5,
+              next_stop_name: "",
+              next_stop_id: "",
+              eta_minutes: 0,
+              status: "in_transit" as const,
+              passengers: 0,
+              direction_id: e.vehicle?.trip?.directionId?.toString() || "0",
+              moving_forward: true,
+            }));
+        }
+      }
+      // Protobuf parsing would need a library — skip for now
+    } catch {
+      // Timeout or network error — try next endpoint
+    }
+  }
+  return null;
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -486,6 +544,39 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Check operating hours first
+    const fleetFraction = getFleetFraction();
+    if (fleetFraction <= 0) {
+      // Service is not running — return empty with status info
+      const hour = new Date().getHours();
+      const nextService = hour >= SERVICE_END_HOUR
+        ? `${SERVICE_START_HOUR}:00 nesër` // tomorrow morning
+        : `${SERVICE_START_HOUR}:00`;
+      return new Response(JSON.stringify({
+        buses: [],
+        cached: false,
+        serviceStatus: "night",
+        message: `Shërbimi i autobusëve nuk është aktiv. Rifillon në ${nextService}.`,
+        nextServiceStart: nextService,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Try GTFS-RT first (real-time data from Tirana's system)
+    const rtBuses = await tryGtfsRt();
+    if (rtBuses && rtBuses.length > 0) {
+      return new Response(JSON.stringify({
+        buses: rtBuses,
+        cached: false,
+        source: "gtfs-rt",
+        serviceStatus: "active",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fallback: simulation
     // Try Redis cache first
     const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state");
     if (cached) {
@@ -493,8 +584,14 @@ Deno.serve(async (req) => {
       const age = Date.now() - state.lastUpdate;
 
       if (age < 8000) {
-        // Fresh enough – return as-is
-        return new Response(JSON.stringify({ buses: state.buses, cached: true, age }), {
+        return new Response(JSON.stringify({
+          buses: state.buses,
+          cached: true,
+          age,
+          source: "simulation",
+          serviceStatus: "active",
+          fleetFraction,
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -504,7 +601,14 @@ Deno.serve(async (req) => {
       const newState: BusState = { buses: updatedBuses, paths: state.paths, lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(newState), 300);
 
-      return new Response(JSON.stringify({ buses: updatedBuses, cached: false, age }), {
+      return new Response(JSON.stringify({
+        buses: updatedBuses,
+        cached: false,
+        age,
+        source: "simulation",
+        serviceStatus: "active",
+        fleetFraction,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -520,11 +624,17 @@ Deno.serve(async (req) => {
     const paths = buildRoutePaths(gtfs);
     const buses = generateBuses(paths);
 
-    // Store paths without the heavy points data for subsequent updates
     const state: BusState = { buses, paths, lastUpdate: Date.now() };
     await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(state), 300);
 
-    return new Response(JSON.stringify({ buses, cached: false, initialized: true }), {
+    return new Response(JSON.stringify({
+      buses,
+      cached: false,
+      initialized: true,
+      source: "simulation",
+      serviceStatus: "active",
+      fleetFraction,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
