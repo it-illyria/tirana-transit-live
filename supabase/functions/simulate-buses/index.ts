@@ -123,18 +123,30 @@ function interpolateAlongPath(
 
 const BASE_SPEED_KMH = 18;
 
-// Tirana buses operate ~5:00 – 23:00
-const SERVICE_START_HOUR = 5;   // first buses depart at 5:00
-const SERVICE_END_HOUR = 23;    // last departures at 23:00
-const RAMP_UP_MINUTES = 60;     // takes 60 min to reach full service (5:00-6:00)
-const RAMP_DOWN_MINUTES = 30;   // last buses finish routes by ~23:30
+// Tirana buses operate ~5:00 – 23:00 (local time)
+const SERVICE_START_HOUR = 5;
+const SERVICE_END_HOUR = 23;
+const RAMP_UP_MINUTES = 60;
+const RAMP_DOWN_MINUTES = 30;
 
-/**
- * Returns the fraction of fleet that should be active (0.0 – 1.0).
- * Handles gradual morning startup and evening wind-down.
- */
-function getFleetFraction(): number {
+/** Get current Tirana local time (Europe/Tirane: UTC+1 CET / UTC+2 CEST) */
+function getTiranaTime(): Date {
+  // Use Intl to get the correct offset for Tirana
   const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Tirane",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || "0");
+  const local = new Date(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return local;
+}
+
+function getFleetFraction(): number {
+  const now = getTiranaTime();
   const hour = now.getHours();
   const minute = now.getMinutes();
   const totalMin = hour * 60 + minute;
@@ -142,28 +154,17 @@ function getFleetFraction(): number {
   const startMin = SERVICE_START_HOUR * 60;
   const endMin = SERVICE_END_HOUR * 60;
 
-  // Dead of night: no buses
   if (totalMin < startMin || totalMin > endMin + RAMP_DOWN_MINUTES) return 0;
+  if (totalMin < startMin + RAMP_UP_MINUTES) return (totalMin - startMin) / RAMP_UP_MINUTES;
+  if (totalMin > endMin) return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
 
-  // Morning ramp-up: gradual increase
-  if (totalMin < startMin + RAMP_UP_MINUTES) {
-    return (totalMin - startMin) / RAMP_UP_MINUTES;
-  }
-
-  // Evening ramp-down: gradual decrease
-  if (totalMin > endMin) {
-    return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
-  }
-
-  // Weekend: slightly reduced service (~80%)
   const dayOfWeek = now.getDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return 0.8;
-
   return 1.0;
 }
 
 function getSpeedMultiplier(): number {
-  const hour = new Date().getHours();
+  const hour = getTiranaTime().getHours();
   if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) return 0.6;
   if (hour >= 22 || hour <= 6) return 1.3;
   return 1.0;
