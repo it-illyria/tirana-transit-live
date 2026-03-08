@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Bell, Bus, Globe, Navigation, Moon, Sun } from "lucide-react";
+import { Bell, Bus, Globe, Navigation, Moon, Sun, Star } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/hooks/use-theme";
 import NotificationSettingsPanel from "@/components/NotificationSettingsPanel";
+import FavoritesPanel from "@/components/FavoritesPanel";
 
 interface Props {
   onPlanTrip: () => void;
@@ -11,6 +12,7 @@ interface Props {
 const FloatingHeader = ({ onPlanTrip }: Props) => {
   const { lang, t, toggleLang } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [favsOpen, setFavsOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -33,6 +35,14 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
               aria-label="Toggle dark mode"
             >
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            <button
+              onClick={() => setFavsOpen(true)}
+              className="p-2 rounded-lg bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Favorites"
+            >
+              <Star className="w-4 h-4" />
             </button>
 
             <button
@@ -65,6 +75,7 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
       </header>
 
       <NotificationSettingsPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <FavoritesPanel open={favsOpen} onClose={() => setFavsOpen(false)} />
     </>
   );
 };
