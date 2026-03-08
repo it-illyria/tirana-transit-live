@@ -72,18 +72,23 @@ function ViewportTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLng
   const onBoundsChangeRef = React.useRef(onBoundsChange);
   onBoundsChangeRef.current = onBoundsChange;
   const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
-
-  const debouncedUpdate = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      onBoundsChangeRef.current(map.getBounds());
-    }, 150);
-  }, []);
+  const mapRef = React.useRef<L.Map | null>(null);
 
   const map = useMapEvents({
-    moveend: debouncedUpdate,
-    zoomend: debouncedUpdate,
+    moveend: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (mapRef.current) onBoundsChangeRef.current(mapRef.current.getBounds());
+      }, 150);
+    },
+    zoomend: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (mapRef.current) onBoundsChangeRef.current(mapRef.current.getBounds());
+      }, 150);
+    },
   });
+  mapRef.current = map;
 
   useEffect(() => {
     onBoundsChangeRef.current(map.getBounds());
