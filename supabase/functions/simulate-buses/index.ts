@@ -497,7 +497,7 @@ function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): Simulate
   if (fleetFraction <= 0) return [];
 
   const returnOnly = isReturnTripsOnly();
-  const activeRoutes = getActiveRoutes(schedules);
+  const activeRoutes = getActiveRoutes(schedules, fleetFraction);
 
   // Group paths by routeId
   const routePaths = new Map<string, RoutePath[]>();
