@@ -647,7 +647,7 @@ const MapView = () => {
               <button
                 onClick={() => {
                   if (hiddenRoutes.size > 0) setHiddenRoutes(new Set());
-                  else setHiddenRoutes(new Set(routeLegend.map((r) => r.id)));
+                  else setHiddenRoutes(new Set(routeList.map((r) => r.id)));
                 }}
                 className="text-[10px] text-primary font-semibold hover:underline"
               >
