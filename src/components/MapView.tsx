@@ -3,7 +3,7 @@ import RefreshStatusIndicator from "@/components/RefreshStatusIndicator";
 import WalkToStop from "@/components/WalkToStop";
 import L from "leaflet";
 import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
-import { Locate, Maximize, Minimize, Layers } from "lucide-react";
+import { Locate, Maximize, Minimize, Layers, Filter } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
@@ -278,6 +278,19 @@ const MapView = () => {
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
   const [showCongestion, setShowCongestion] = useState(false);
+  const [showRouteLegend, setShowRouteLegend] = useState(false);
+  const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
+
+  // Route legend data
+  const routeLegend = useMemo(() => {
+    if (!data) return [];
+    return data.routes.map((r) => ({
+      id: r.route_id,
+      name: r.route_short_name || r.route_long_name,
+      color: r.route_color || "#0066CC",
+      busCount: buses.filter((b) => b.route_id === r.route_id).length,
+    })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [data, buses]);
 
   // Build all route polylines with traffic coloring
   const trafficRouteSegments = useMemo(() => {
@@ -380,11 +393,15 @@ const MapView = () => {
 
   // Only show buses in viewport
   const visibleBuses = useMemo(() => {
-    if (!bounds) return buses;
-    return buses.filter((b) =>
+    let filtered = buses;
+    if (hiddenRoutes.size > 0) {
+      filtered = filtered.filter((b) => !hiddenRoutes.has(b.route_id));
+    }
+    if (!bounds) return filtered;
+    return filtered.filter((b) =>
       bounds.contains([b.latitude, b.longitude])
     );
-  }, [buses, bounds]);
+  }, [buses, bounds, hiddenRoutes]);
 
   // Route polylines for selected route (both directions)
   const routePolylines = useMemo(() => {
@@ -549,6 +566,61 @@ const MapView = () => {
         <WalkToStop />
         <LocateButton />
         <FullscreenButton />
+
+        {/* Route filter toggle */}
+        <button
+          onClick={() => setShowRouteLegend(!showRouteLegend)}
+          className={`absolute bottom-64 right-3 z-[1000] w-10 h-10 rounded-xl shadow-float flex items-center justify-center transition-colors ${
+            showRouteLegend ? "bg-primary text-primary-foreground" : "glass-surface hover:bg-accent"
+          }`}
+          aria-label="Route filter"
+          title="Route filter & legend"
+        >
+          <Filter className="w-5 h-5" />
+        </button>
+
+        {/* Route Legend/Filter panel */}
+        {showRouteLegend && (
+          <div className="absolute top-3 right-3 z-[1000] glass-surface rounded-xl shadow-float p-3 w-[200px] max-h-[60vh] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-foreground">Routes</span>
+              <button
+                onClick={() => {
+                  if (hiddenRoutes.size > 0) setHiddenRoutes(new Set());
+                  else setHiddenRoutes(new Set(routeLegend.map((r) => r.id)));
+                }}
+                className="text-[10px] text-primary font-semibold hover:underline"
+              >
+                {hiddenRoutes.size > 0 ? "Show all" : "Hide all"}
+              </button>
+            </div>
+            <div className="overflow-y-auto space-y-1 flex-1">
+              {routeLegend.map((r) => {
+                const hidden = hiddenRoutes.has(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      const next = new Set(hiddenRoutes);
+                      if (hidden) next.delete(r.id); else next.add(r.id);
+                      setHiddenRoutes(next);
+                    }}
+                    className={`flex items-center gap-2 w-full px-2 py-1 rounded-md text-left transition-colors ${
+                      hidden ? "opacity-40" : "hover:bg-accent"
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded shrink-0"
+                      style={{ backgroundColor: r.color }}
+                    />
+                    <span className="text-[11px] font-semibold text-foreground flex-1 truncate">{r.name}</span>
+                    <span className="text-[9px] text-muted-foreground">{r.busCount}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Congestion toggle */}
         <button
