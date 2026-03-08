@@ -43,9 +43,19 @@ interface RoutePath {
   routeName: string;
 }
 
+/** Per-route schedule: which hours have active trips, and how many buses per hour */
+interface RouteSchedule {
+  routeId: string;
+  routeName: string;
+  /** Map of hour (0-23) → number of trips departing in that hour */
+  tripsByHour: Record<number, number>;
+  lastDepartureHour: number;
+}
+
 interface BusState {
   buses: SimulatedBus[];
   paths: RoutePath[];
+  schedules: RouteSchedule[];
   lastUpdate: number;
 }
 
@@ -281,6 +291,108 @@ async function loadGTFS(supabase: any) {
   return { routes, stops, trips, stopTimes, shapes };
 }
 
+// ─── Build route schedules (which routes run at which hours) ────────────────
+
+function buildRouteSchedules(data: any): RouteSchedule[] {
+  const routeMap = new Map(data.routes.map((r: any) => [r.route_id, r]));
+  const tripRouteMap = new Map(data.trips.map((t: any) => [t.trip_id, t.route_id]));
+
+  // For each trip, find the first departure time → map to route + hour
+  const routeHourCounts = new Map<string, Record<number, number>>();
+
+  for (const st of data.stopTimes) {
+    if (st.stop_sequence !== 1 && st.stop_sequence !== 0) continue; // first stop only
+    const routeId = tripRouteMap.get(st.trip_id);
+    if (!routeId) continue;
+
+    const timeParts = (st.departure_time || st.arrival_time || "").split(":");
+    if (timeParts.length < 2) continue;
+    const hour = parseInt(timeParts[0]) % 24; // handle "25:00" style times
+
+    if (!routeHourCounts.has(routeId)) routeHourCounts.set(routeId, {});
+    const hourMap = routeHourCounts.get(routeId)!;
+    hourMap[hour] = (hourMap[hour] || 0) + 1;
+  }
+
+  // If we didn't find any seq=0 or seq=1, fall back to min sequence per trip
+  if (routeHourCounts.size === 0) {
+    const tripFirstDep = new Map<string, string>();
+    for (const st of data.stopTimes) {
+      const existing = tripFirstDep.get(st.trip_id);
+      if (!existing || st.stop_sequence < (data.stopTimes.find((s: any) => s.trip_id === st.trip_id && s.departure_time === existing)?.stop_sequence || 999)) {
+        tripFirstDep.set(st.trip_id, st.departure_time || st.arrival_time || "");
+      }
+    }
+    for (const [tripId, depTime] of tripFirstDep) {
+      const routeId = tripRouteMap.get(tripId);
+      if (!routeId) continue;
+      const hour = parseInt(depTime.split(":")[0] || "0") % 24;
+      if (!routeHourCounts.has(routeId)) routeHourCounts.set(routeId, {});
+      const hourMap = routeHourCounts.get(routeId)!;
+      hourMap[hour] = (hourMap[hour] || 0) + 1;
+    }
+  }
+
+  const schedules: RouteSchedule[] = [];
+  for (const [routeId, tripsByHour] of routeHourCounts) {
+    const route: any = routeMap.get(routeId);
+    const hours = Object.keys(tripsByHour).map(Number);
+    const lastDepartureHour = Math.max(...hours);
+    schedules.push({
+      routeId,
+      routeName: route?.route_short_name || route?.route_long_name || routeId,
+      tripsByHour,
+      lastDepartureHour,
+    });
+  }
+
+  return schedules;
+}
+
+/**
+ * Returns route IDs that should have active buses at the current Tirana time.
+ * During late hours, only routes with the most scheduled trips remain active.
+ */
+function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map<string, number> {
+  const now = getTiranaTime();
+  const currentHour = now.getHours();
+  const active = new Map<string, number>();
+
+  // Collect routes with trips in current or previous hour
+  const candidates: { routeId: string; trips: number }[] = [];
+  for (const sched of schedules) {
+    const currentTrips = sched.tripsByHour[currentHour] || 0;
+    const prevTrips = sched.tripsByHour[(currentHour - 1 + 24) % 24] || 0;
+    const totalRelevant = currentTrips + (currentHour >= 20 ? prevTrips * 0.3 : 0);
+    if (totalRelevant > 0) {
+      candidates.push({ routeId: sched.routeId, trips: totalRelevant });
+    }
+  }
+
+  if (candidates.length === 0) return active;
+
+  // Sort by trip count (most frequent routes first)
+  candidates.sort((a, b) => b.trips - a.trips);
+
+  // During late hours with low fleet fraction, only keep the top routes
+  // Target: roughly match what Google Maps shows (5-8 routes with 1-2 buses each)
+  const maxRoutes = fleetFraction >= 0.5
+    ? candidates.length
+    : Math.max(3, Math.ceil(candidates.length * fleetFraction * 3));
+
+  const selected = candidates.slice(0, maxRoutes);
+
+  for (const c of selected) {
+    // 1 bus per route during late hours, 1-2 for high-frequency routes during peak
+    const busCount = fleetFraction >= 0.5
+      ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
+      : c.trips > 4 ? 2 : 1;
+    active.set(c.routeId, busCount);
+  }
+
+  return active;
+}
+
 // ─── Build route paths ──────────────────────────────────────────────────────
 
 function buildRoutePaths(data: any): RoutePath[] {
@@ -376,17 +488,18 @@ function buildRoutePaths(data: any): RoutePath[] {
   return paths;
 }
 
-// ─── Generate initial buses (respects operating hours) ───────────────────────
-// Buses are generated on BOTH directions of each route. Each bus does round trips:
-// moving_forward=true → progress 0→1, moving_forward=false → progress 1→0
+// ─── Generate initial buses (schedule-aware) ─────────────────────────────────
+// Uses GTFS schedule data to determine which routes actually have service now.
+// During late hours, only routes with scheduled trips are active.
 
-function generateBuses(paths: RoutePath[]): SimulatedBus[] {
+function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
   if (fleetFraction <= 0) return [];
 
   const returnOnly = isReturnTripsOnly();
+  const activeRoutes = getActiveRoutes(schedules, fleetFraction);
 
-  // Group paths by routeId to create round-trip pairs
+  // Group paths by routeId
   const routePaths = new Map<string, RoutePath[]>();
   for (const p of paths) {
     const arr = routePaths.get(p.routeId) || [];
@@ -398,21 +511,29 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   let idx = 0;
 
   for (const [routeId, rpaths] of routePaths) {
-    const primaryPath = rpaths[0];
-    const maxCount = Math.min(2 + Math.floor(primaryPath.totalDistance / 5), 4);
-    const count = Math.max(1, Math.round(maxCount * fleetFraction));
+    // During off-peak / late hours, only generate buses for scheduled routes
+    const scheduledCount = activeRoutes.get(routeId);
+    
+    let count: number;
+    if (fleetFraction >= 0.8) {
+      // Full service: use distance-based count scaled by fleet fraction
+      const maxCount = Math.min(2 + Math.floor(rpaths[0].totalDistance / 5), 4);
+      count = Math.max(1, Math.round(maxCount * fleetFraction));
+    } else {
+      // Reduced service: only routes with actual schedule get buses
+      if (!scheduledCount) continue; // Skip routes with no scheduled service now
+      count = scheduledCount;
+    }
 
     for (let b = 0; b < count; b++) {
-      // After last departures: all buses are on return ("kthim") trips
       const goingForward = returnOnly ? false : (b % 2 === 0);
-
+      const primaryPath = rpaths[0];
       const dirPath = rpaths.length > 1
         ? rpaths[goingForward ? 0 : 1]
         : primaryPath;
 
-      // Late night buses: position them mid-to-late in their return trip
       const progress = returnOnly
-        ? 0.3 + Math.random() * 0.5  // somewhere mid-route heading back
+        ? 0.3 + Math.random() * 0.5
         : (b / count + Math.random() * 0.05) % 1;
       const effectiveProgress = goingForward ? progress : 1 - progress;
 
@@ -448,6 +569,8 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
       });
     }
   }
+
+  console.log(`Generated ${buses.length} buses for ${activeRoutes.size} active routes (fleet: ${Math.round(fleetFraction * 100)}%, returnOnly: ${returnOnly})`);
   return buses;
 }
 
@@ -743,7 +866,7 @@ Deno.serve(async (req) => {
 
     // Fallback: simulation
     // Try Redis cache first
-    const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state");
+    const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state_v2");
     if (cached) {
       const state: BusState = JSON.parse(cached);
       const age = Date.now() - state.lastUpdate;
@@ -763,8 +886,8 @@ Deno.serve(async (req) => {
 
       // Stale – update positions
       const updatedBuses = updateBuses(state);
-      const newState: BusState = { buses: updatedBuses, paths: state.paths, lastUpdate: Date.now() };
-      await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(newState), 300);
+      const newState: BusState = { buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
+      await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(newState), 300);
 
       return new Response(JSON.stringify({
         buses: updatedBuses,
@@ -787,10 +910,13 @@ Deno.serve(async (req) => {
 
     const gtfs = await loadGTFS(supabase);
     const paths = buildRoutePaths(gtfs);
-    const buses = generateBuses(paths);
+    const schedules = buildRouteSchedules(gtfs);
+    const buses = generateBuses(paths, schedules);
 
-    const state: BusState = { buses, paths, lastUpdate: Date.now() };
-    await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(state), 300);
+    console.log(`Built ${schedules.length} route schedules, ${paths.length} paths`);
+
+    const state: BusState = { buses, paths, schedules, lastUpdate: Date.now() };
+    await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(state), 300);
 
     return new Response(JSON.stringify({
       buses,
