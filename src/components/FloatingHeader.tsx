@@ -38,6 +38,14 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
             </button>
 
             <button
+              onClick={() => setFavsOpen(true)}
+              className="p-2 rounded-lg bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Favorites"
+            >
+              <Star className="w-4 h-4" />
+            </button>
+
+            <button
               onClick={() => setNotifOpen(true)}
               className="p-2 rounded-lg bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Notification settings"
