@@ -340,11 +340,12 @@ function updateBuses(state: BusState): SimulatedBus[] {
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
-  const elapsed = (Date.now() - state.lastUpdate) / 1000; // actual seconds since last update
+  const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
   return state.buses.map((bus) => {
-    const path = pathMap.get(`${bus.route_id}_${bus.direction_id}`);
+    let directionId = bus.direction_id;
+    const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
 
     const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
@@ -355,13 +356,18 @@ function updateBuses(state: BusState): SimulatedBus[] {
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
-    // When bus reaches the end of the route, hold at terminus then restart
-    // On round-trip routes the last point ≈ first point, so 1.0 → 0.0 is seamless
     if (newProgress >= 0.995) {
       if (!wasAtStop) {
+        // Pause at terminus
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
+        // Switch to opposite direction for the return trip
+        const oppositeDir = directionId === "0" ? "1" : "0";
+        const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
+        if (oppositePath) {
+          directionId = oppositeDir;
+        }
         newProgress = 0.0;
         newStatus = "in_transit";
       }
@@ -373,9 +379,10 @@ function updateBuses(state: BusState): SimulatedBus[] {
       }
     }
 
-    const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
-    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[0];
-    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance : 0;
+    const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
+    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, newProgress);
+    const nextStop = activePath.stops.find((s) => s.distanceAlong > newProgress) || activePath.stops[0];
+    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * activePath.totalDistance : 0;
     const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
     const pDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
 
@@ -387,6 +394,7 @@ function updateBuses(state: BusState): SimulatedBus[] {
       speed: newStatus === "at_stop" ? 0 : speed,
       timestamp: Date.now(),
       progress: newProgress,
+      direction_id: directionId,
       next_stop_name: nextStop?.name || bus.next_stop_name,
       next_stop_id: nextStop?.stopId || bus.next_stop_id,
       eta_minutes: Math.round(eta),

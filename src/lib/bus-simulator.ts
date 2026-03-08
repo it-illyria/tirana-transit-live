@@ -272,31 +272,32 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
   }
 
   const speedMult = getSpeedMultiplier();
-  const updateIntervalSec = 10; // matches the 10s interval in GTFSContext
+  const updateIntervalSec = 10;
 
   return buses.map((bus) => {
-    const path = pathMap.get(`${bus.route_id}_${bus.direction_id}`);
+    let directionId = bus.direction_id;
+    const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
 
-    // Calculate how far the bus moves in 10 seconds
     const currentSpeed = BASE_SPEED_KMH * speedMult * (0.8 + Math.random() * 0.4);
     const distanceKm = (currentSpeed * updateIntervalSec) / 3600;
     const progressDelta = distanceKm / path.totalDistance;
     let newProgress = bus.progress + progressDelta;
 
-    // At stop behavior: pause briefly
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
-    // When bus reaches the end, pause at terminus then loop back to start
-    // On round-trip routes the last point ≈ first point, so 1.0 → 0.0 is seamless
     if (newProgress >= 0.995) {
       if (!wasAtStop) {
-        // First arrival at terminus — hold here
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        // Was already paused — restart from beginning
+        // Switch to opposite direction for the return trip
+        const oppositeDir = directionId === "0" ? "1" : "0";
+        const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
+        if (oppositePath) {
+          directionId = oppositeDir;
+        }
         newProgress = 0.0;
         newStatus = "in_transit";
       }
@@ -310,16 +311,15 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       }
     }
 
-    const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
+    const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
+    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, newProgress);
 
-    // Find next stop
-    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[0];
+    const nextStop = activePath.stops.find((s) => s.distanceAlong > newProgress) || activePath.stops[0];
     const distToNextStop = nextStop
-      ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance
+      ? Math.abs(nextStop.distanceAlong - newProgress) * activePath.totalDistance
       : 0;
-    const etaMinutes = distToNextStop > 0 ? (distToNextStop / (currentSpeed)) * 60 : 0;
+    const etaMinutes = distToNextStop > 0 ? (distToNextStop / currentSpeed) * 60 : 0;
 
-    // Slight passenger variation
     const passengerDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
 
     return {
@@ -330,6 +330,7 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       speed: newStatus === "at_stop" ? 0 : currentSpeed,
       timestamp: Date.now(),
       progress: newProgress,
+      direction_id: directionId,
       next_stop_name: nextStop?.name || bus.next_stop_name,
       next_stop_id: nextStop?.stopId || bus.next_stop_id,
       eta_minutes: Math.round(etaMinutes),
