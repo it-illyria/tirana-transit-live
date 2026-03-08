@@ -4,7 +4,7 @@ export type Lang = "en" | "sq";
 
 export const translations = {
   en: {
-    appTitle: "Tirana Bus Tracker",
+    appTitle: "UrbanTirana",
     findBus: "Find your bus",
     searchPlaceholder: "Search routes or stops...",
     myLocation: "My location",
@@ -105,7 +105,7 @@ export const translations = {
     secondsAgo: "s ago",
   },
   sq: {
-    appTitle: "Gjurmuesi i Autobusëve të Tiranës",
+    appTitle: "UrbanTirana",
     findBus: "Gjej autobusin tënd",
     searchPlaceholder: "Kërko linja ose stacione...",
     myLocation: "Vendndodhja ime",
@@ -122,7 +122,7 @@ export const translations = {
     loading: "Duke ngarkuar të dhënat e transportit...",
     loadingError: "Dështoi ngarkimi i të dhënave",
     retry: "Riprovo",
-    planTrip: "Planifiko udhëtimin",
+    planTrip: "Plan rrugën",
     from: "Nga",
     to: "Për në",
     findRoutes: "Gjej linjat",
