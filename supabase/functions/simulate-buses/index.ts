@@ -123,15 +123,17 @@ function interpolateAlongPath(
 
 const BASE_SPEED_KMH = 18;
 
-// Tirana buses operate ~5:00 – 23:00 (local time)
+// Tirana buses: first departures ~5:00, last departures ~20:30-21:00
+// After 21:00, only remaining return ("kthim") trips finish by ~22:00-22:30
+// By 23:00 all buses are parked
 const SERVICE_START_HOUR = 5;
-const SERVICE_END_HOUR = 23;
-const RAMP_UP_MINUTES = 60;
-const RAMP_DOWN_MINUTES = 30;
+const LAST_DEPARTURE_HOUR = 21;  // last outbound departures
+const SERVICE_END_HOUR = 23;      // absolute end (last return trips finish)
+const RAMP_UP_MINUTES = 60;       // 5:00-6:00 gradual start
+const RAMP_DOWN_MINUTES = 120;    // 21:00-23:00 gradual wind-down
 
 /** Get current Tirana local time (Europe/Tirane: UTC+1 CET / UTC+2 CEST) */
 function getTiranaTime(): Date {
-  // Use Intl to get the correct offset for Tirana
   const now = new Date();
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "Europe/Tirane",
@@ -145,22 +147,62 @@ function getTiranaTime(): Date {
   return local;
 }
 
+/**
+ * Fleet fraction: 0.0–1.0
+ * - 5:00-6:00: ramp up 0→1
+ * - 6:00-20:00: full service (1.0, 0.8 weekends)
+ * - 20:00-21:00: start reducing (0.6-0.3)
+ * - 21:00-22:30: only return trips, ~10-20% fleet
+ * - 22:30-23:00: last buses parking
+ * - 23:00-5:00: no service
+ */
 function getFleetFraction(): number {
   const now = getTiranaTime();
   const hour = now.getHours();
   const minute = now.getMinutes();
   const totalMin = hour * 60 + minute;
 
-  const startMin = SERVICE_START_HOUR * 60;
-  const endMin = SERVICE_END_HOUR * 60;
+  const startMin = SERVICE_START_HOUR * 60;       // 300
+  const lastDepMin = LAST_DEPARTURE_HOUR * 60;    // 1260
+  const endMin = SERVICE_END_HOUR * 60;            // 1380
 
-  if (totalMin < startMin || totalMin > endMin + RAMP_DOWN_MINUTES) return 0;
-  if (totalMin < startMin + RAMP_UP_MINUTES) return (totalMin - startMin) / RAMP_UP_MINUTES;
-  if (totalMin > endMin) return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
+  // Dead of night
+  if (totalMin < startMin || totalMin >= endMin) return 0;
 
+  // Morning ramp-up: 5:00-6:00
+  if (totalMin < startMin + RAMP_UP_MINUTES) {
+    return (totalMin - startMin) / RAMP_UP_MINUTES;
+  }
+
+  // Evening wind-down starts at 20:00
+  const eveningStartMin = 20 * 60; // 1200
+  if (totalMin >= eveningStartMin) {
+    // 20:00-21:00: reduce to ~30%
+    if (totalMin < lastDepMin) {
+      return 0.3 + 0.7 * (1 - (totalMin - eveningStartMin) / 60);
+    }
+    // 21:00-22:30: only ~10-15% (return trips)
+    if (totalMin < endMin - 30) {
+      const progress = (totalMin - lastDepMin) / (endMin - 30 - lastDepMin);
+      return Math.max(0.05, 0.15 * (1 - progress));
+    }
+    // 22:30-23:00: last few buses finishing
+    return 0.03;
+  }
+
+  // Weekend: slightly reduced
   const dayOfWeek = now.getDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return 0.8;
   return 1.0;
+}
+
+/** Whether we're in "return trips only" mode (after last departures) */
+function isReturnTripsOnly(): boolean {
+  const totalMin = (() => {
+    const t = getTiranaTime();
+    return t.getHours() * 60 + t.getMinutes();
+  })();
+  return totalMin >= LAST_DEPARTURE_HOUR * 60;
 }
 
 function getSpeedMultiplier(): number {
