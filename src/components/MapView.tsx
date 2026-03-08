@@ -546,7 +546,7 @@ const MapView = () => {
                     background: bus.status === "at_stop" ? "#f59e0b" : bus.status === "delayed" ? "#ef4444" : "#22c55e",
                     color: "white",
                     fontWeight: 600,
-                  }}>{bus.status === "at_stop" ? "At Stop" : bus.status === "delayed" ? "Delayed" : "In Transit"}</span>
+                  }}>{bus.status === "at_stop" ? "Në stacion" : bus.status === "delayed" ? "Me vonesë" : "Në lëvizje"}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#666" }}>
                   {bus.vehicle_id} · {Math.round(bus.speed)} km/h
