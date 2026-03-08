@@ -1,10 +1,17 @@
 import { useMemo, useEffect, useState } from "react";
-import { Star, MapPin, X, AlertTriangle, Clock, Navigation } from "lucide-react";
+import { Star, MapPin, X, AlertTriangle, Clock, Navigation, Filter } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites, toggleFavorite } from "@/lib/favorites";
 import { predictArrivals } from "@/lib/arrival-predictions";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
 import { useI18n } from "@/lib/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   open: boolean;
@@ -15,6 +22,7 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
   const { t } = useI18n();
   const { data, buses, setFocusStopId } = useGTFS();
   const [favIds, setFavIds] = useState<string[]>([]);
+  const [selectedRouteFilter, setSelectedRouteFilter] = useState<string>("all");
 
   // Re-read favorites when panel opens or buses update (triggers re-render)
   useEffect(() => {
@@ -25,6 +33,20 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
     if (!data) return [];
     return data.stops.filter((s) => favIds.includes(s.stop_id));
   }, [data, favIds]);
+
+  // Get unique routes serving favorite stops
+  const availableRoutes = useMemo(() => {
+    if (!data || favoriteStops.length === 0) return [];
+    const routeIds = new Set<string>();
+    favoriteStops.forEach((stop) => {
+      const stopTimes = data.stopTimes.filter((st) => st.stop_id === stop.stop_id);
+      stopTimes.forEach((st) => {
+        const trip = data.trips.find((tr) => tr.trip_id === st.trip_id);
+        if (trip) routeIds.add(trip.route_id);
+      });
+    });
+    return data.routes.filter((r) => routeIds.has(r.route_id));
+  }, [data, favoriteStops]);
 
   const handleRemove = (stopId: string) => {
     toggleFavorite(stopId);
@@ -49,12 +71,34 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               {favoriteStops.length}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+          <div className="flex items-center gap-2">
+            {availableRoutes.length > 0 && (
+              <Select value={selectedRouteFilter} onValueChange={setSelectedRouteFilter}>
+                <SelectTrigger className="h-8 w-[100px] text-xs">
+                  <Filter className="w-3 h-3 mr-1" />
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Routes</SelectItem>
+                  {availableRoutes.map((route) => (
+                    <SelectItem key={route.route_id} value={route.route_id}>
+                      <span
+                        className="inline-block w-2 h-2 rounded-full mr-1.5"
+                        style={{ backgroundColor: `#${route.route_color || "888"}` }}
+                      />
+                      {route.route_short_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -70,6 +114,7 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               <FavStopCard
                 key={stop.stop_id}
                 stop={stop}
+                routeFilter={selectedRouteFilter}
                 onRemove={() => handleRemove(stop.stop_id)}
                 onLocate={() => {
                   setFocusStopId(stop.stop_id);
@@ -86,10 +131,12 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
 
 function FavStopCard({
   stop,
+  routeFilter,
   onRemove,
   onLocate,
 }: {
   stop: { stop_id: string; stop_name: string };
+  routeFilter: string;
   onRemove: () => void;
   onLocate: () => void;
 }) {
@@ -98,13 +145,26 @@ function FavStopCard({
 
   const predictions = useMemo(() => {
     if (!data || !buses.length) return [];
-    return predictArrivals(data, buses, stop.stop_id, 4);
-  }, [data, buses, stop.stop_id]);
+    let preds = predictArrivals(data, buses, stop.stop_id, 8);
+    if (routeFilter !== "all") {
+      preds = preds.filter((p) => p.routeId === routeFilter);
+    }
+    return preds.slice(0, 4);
+  }, [data, buses, stop.stop_id, routeFilter]);
 
   const departures = useMemo(() => {
     if (!data) return [];
-    return getUpcomingDepartures(data, stop.stop_id, 3);
-  }, [data, stop.stop_id]);
+    let deps = getUpcomingDepartures(data, stop.stop_id, 8);
+    if (routeFilter !== "all") {
+      deps = deps.filter((d) => d.routeId === routeFilter);
+    }
+    return deps.slice(0, 3);
+  }, [data, stop.stop_id, routeFilter]);
+
+  // Hide card if filtered and no matching arrivals/departures
+  if (routeFilter !== "all" && predictions.length === 0 && departures.length === 0) {
+    return null;
+  }
 
   return (
     <div className="rounded-xl bg-secondary/50 border border-border p-3">

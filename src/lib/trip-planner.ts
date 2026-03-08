@@ -126,7 +126,7 @@ export function getUpcomingDepartures(
   data: GTFSData,
   stopId: string,
   limit = 5
-): { route: string; routeColor: string; time: string; headsign: string; minutesAway: number }[] {
+): { route: string; routeId: string; routeColor: string; time: string; headsign: string; minutesAway: number }[] {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -141,6 +141,7 @@ export function getUpcomingDepartures(
       const route = trip ? routeMap.get(trip.route_id) : null;
       return {
         route: route?.route_short_name || route?.route_long_name || "?",
+        routeId: trip?.route_id || "",
         routeColor: route?.route_color || "#0066CC",
         time: st.departure_time,
         headsign: trip?.trip_headsign || "",
