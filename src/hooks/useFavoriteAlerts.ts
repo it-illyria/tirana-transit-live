@@ -48,9 +48,9 @@ export function useFavoriteAlerts() {
         if (notifiedRef.current.has(key)) continue;
         notifiedRef.current.set(key, now);
 
-        const mins = pred.predictedMinutes <= 0 ? "now" : `in ${pred.predictedMinutes} min`;
-        const title = `🚌 Bus ${pred.routeName} arriving ${mins}`;
-        const body = `At ${stopName} — ${pred.stopsAway} stop${pred.stopsAway !== 1 ? "s" : ""} away`;
+        const mins = pred.predictedMinutes <= 0 ? "tani" : `në ${pred.predictedMinutes} min`;
+        const title = `🚌 Autobusi ${pred.routeName} mbërrin ${mins}`;
+        const body = `Në ${stopName} — ${pred.stopsAway} stacion${pred.stopsAway !== 1 ? "e" : ""} larg`;
 
         // In-app toast notification (always shown when app is focused)
         toast(title, {
