@@ -374,19 +374,28 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   // Sort by trip count (most frequent routes first)
   candidates.sort((a, b) => b.trips - a.trips);
 
-  // During late hours with low fleet fraction, only keep the top routes
-  // Target: roughly match what Google Maps shows (5-8 routes with 1-2 buses each)
-  const maxRoutes = fleetFraction >= 0.5
-    ? candidates.length
-    : Math.max(3, Math.ceil(candidates.length * fleetFraction * 3));
+  // During late hours, match Google Maps: ~5 routes with 1 bus each = 5-7 total
+  let maxRoutes: number;
+  if (fleetFraction <= 0.05) {
+    // Very late (after 22:30): only 5 top routes, 1 bus each
+    maxRoutes = Math.min(5, candidates.length);
+  } else if (fleetFraction < 0.2) {
+    // Late (21:00-22:30): 5-6 routes
+    maxRoutes = Math.min(6, candidates.length);
+  } else if (fleetFraction < 0.5) {
+    maxRoutes = Math.max(5, Math.ceil(candidates.length * fleetFraction * 2));
+  } else {
+    maxRoutes = candidates.length;
+  }
 
   const selected = candidates.slice(0, maxRoutes);
 
   for (const c of selected) {
-    // 1 bus per route during late hours, 1-2 for high-frequency routes during peak
+    // Late hours: strictly 1 bus per route
+    // Peak: scale with frequency
     const busCount = fleetFraction >= 0.5
       ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
-      : c.trips > 4 ? 2 : 1;
+      : 1;
     active.set(c.routeId, busCount);
   }
 
@@ -581,6 +590,7 @@ function updateBuses(state: BusState): SimulatedBus[] {
   if (fleetFraction <= 0) return [];
 
   const returnOnly = isReturnTripsOnly();
+  const activeRoutes = getActiveRoutes(state.schedules || [], fleetFraction);
 
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
@@ -595,20 +605,35 @@ function updateBuses(state: BusState): SimulatedBus[] {
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
   let activeBuses = state.buses;
 
-  // During ramp-down: remove parked buses (speed=0, at terminus) first
-  if (fleetFraction < 1 && activeBuses.length > targetCount) {
-    const parked = activeBuses.filter(b => b.speed === 0 && (b.progress <= 0.01 || b.progress >= 0.99));
-    const moving = activeBuses.filter(b => !(b.speed === 0 && (b.progress <= 0.01 || b.progress >= 0.99)));
-    activeBuses = [...moving, ...parked.slice(0, Math.max(0, targetCount - moving.length))];
+  // During reduced service, only keep buses on currently-active routes
+  // and limit bus count per route to what the schedule says
+  if (fleetFraction < 0.5) {
+    const routeBusCounts = new Map<string, number>();
+    activeBuses = activeBuses.filter(b => {
+      const maxForRoute = activeRoutes.get(b.route_id);
+      if (!maxForRoute) return false; // route not active, remove bus
+      const current = routeBusCounts.get(b.route_id) || 0;
+      if (current >= maxForRoute) return false; // already enough buses on this route
+      routeBusCounts.set(b.route_id, current + 1);
+      return true;
+    });
   }
+
+  // Remove parked buses (at terminus with speed 0)
+  activeBuses = activeBuses.filter(b => {
+    if (b.speed === 0 && (b.progress <= 0.01 || b.progress >= 0.99)) {
+      // In return-only mode, parked buses stay parked (removed)
+      if (returnOnly) return false;
+    }
+    return true;
+  });
 
   // In return-only mode, force any forward-moving buses to start returning
   if (returnOnly) {
     activeBuses = activeBuses.map(b => {
-      if (b.moving_forward && b.progress > 0.5) {
+      if (b.moving_forward) {
         return { ...b, moving_forward: false };
       }
       return b;
