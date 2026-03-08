@@ -192,6 +192,21 @@ const RouteDetailView = () => {
     });
   }, [routeStops]);
 
+  // Compute real-time ETA for each stop based on current Tirana time
+  const realtimeETAs = useMemo(() => {
+    if (routeStops.length === 0 || interStopMinutes.length === 0) return [];
+    const etas: string[] = [];
+    let cumulative = 0;
+    for (let i = 0; i < routeStops.length; i++) {
+      const totalMin = tiranaMinutes + cumulative;
+      const h = Math.floor(totalMin / 60) % 24;
+      const m = totalMin % 60;
+      etas.push(`${h.toString().padStart(2, "0")}:${Math.floor(m).toString().padStart(2, "0")}`);
+      if (i < interStopMinutes.length) cumulative += interStopMinutes[i];
+    }
+    return etas;
+  }, [routeStops, interStopMinutes, tiranaMinutes]);
+
   if (!selectedRouteId || !route) return null;
 
   const statusColor = (status: ArrivalPrediction["status"]) => {
