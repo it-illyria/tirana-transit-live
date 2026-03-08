@@ -393,11 +393,15 @@ const MapView = () => {
 
   // Only show buses in viewport
   const visibleBuses = useMemo(() => {
-    if (!bounds) return buses;
-    return buses.filter((b) =>
+    let filtered = buses;
+    if (hiddenRoutes.size > 0) {
+      filtered = filtered.filter((b) => !hiddenRoutes.has(b.route_id));
+    }
+    if (!bounds) return filtered;
+    return filtered.filter((b) =>
       bounds.contains([b.latitude, b.longitude])
     );
-  }, [buses, bounds]);
+  }, [buses, bounds, hiddenRoutes]);
 
   // Route polylines for selected route (both directions)
   const routePolylines = useMemo(() => {
