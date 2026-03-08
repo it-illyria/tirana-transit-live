@@ -1,1 +1,7 @@
 project_id = "mtrvbusiqslredfmnyac"
+
+[functions.simulate-buses]
+verify_jwt = false
+
+[functions.fetch-gtfs]
+verify_jwt = false
