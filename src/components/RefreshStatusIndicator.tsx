@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { useI18n } from "@/lib/i18n";
-import { Wifi, WifiOff, Database, Moon, Radio, Clock } from "lucide-react";
+import { Wifi, WifiOff, Database, Moon, Radio, Clock, Users } from "lucide-react";
 
 function useCountdown(targetIso: string | undefined) {
   const [remaining, setRemaining] = useState("");
@@ -47,14 +47,12 @@ const RefreshStatusIndicator = () => {
 
   if (!refreshStatus.lastRefresh) return null;
 
-  // Night mode — service not running
+  // Night mode — service not running (banner handles the big display)
   if (refreshStatus.serviceStatus === "night") {
     return (
       <div className="absolute bottom-4 left-3 z-[1000] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg glass-surface shadow-float text-[11px] font-medium select-none">
         <Moon className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-muted-foreground">
-          {refreshStatus.serviceMessage || t.serviceNotActive}
-        </span>
+        <span className="text-muted-foreground">{t.serviceNotActive}</span>
         {countdown && (
           <>
             <span className="text-muted-foreground/40">·</span>
@@ -69,6 +67,10 @@ const RefreshStatusIndicator = () => {
   }
 
   const isStale = secondsAgo !== null && secondsAgo > 15;
+  const fleetPct = refreshStatus.fleetFraction != null
+    ? Math.round(refreshStatus.fleetFraction * 100)
+    : null;
+  const showFleetPct = fleetPct !== null && fleetPct < 100;
 
   return (
     <div className="absolute bottom-4 left-3 z-[1000] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg glass-surface shadow-float text-[11px] font-medium select-none">
@@ -101,6 +103,16 @@ const RefreshStatusIndicator = () => {
       <span className="text-foreground font-semibold">
         🚌 {refreshStatus.busCount}
       </span>
+
+      {showFleetPct && (
+        <>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="flex items-center gap-1 text-accent-foreground">
+            <Users className="w-3 h-3" />
+            {fleetPct}% {t.fleetActive}
+          </span>
+        </>
+      )}
     </div>
   );
 };
