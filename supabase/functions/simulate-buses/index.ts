@@ -405,27 +405,31 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   return buses;
 }
 
-// ─── Update bus positions (with operating hours awareness) ───────────────────
+// ─── Update bus positions (with round-trip & operating hours) ────────────────
 
 function updateBuses(state: BusState): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
-
-  // If service has ended, return empty
   if (fleetFraction <= 0) return [];
 
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
+  // Also group by routeId for direction switching
+  const routePaths = new Map<string, RoutePath[]>();
+  for (const p of state.paths) {
+    const arr = routePaths.get(p.routeId) || [];
+    arr.push(p);
+    routePaths.set(p.routeId, arr);
+  }
+
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  // During ramp-down, progressively remove buses that reach terminus
+  // During ramp-down, progressively remove buses
   const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
   let activeBuses = state.buses;
 
-  // If we need fewer buses (evening), only keep a subset
   if (fleetFraction < 1 && activeBuses.length > targetCount) {
-    // Keep buses that are mid-route, park ones at terminus
     const midRoute = activeBuses.filter(b => b.progress > 0.05 && b.progress < 0.95);
     const atEnds = activeBuses.filter(b => b.progress <= 0.05 || b.progress >= 0.95);
     activeBuses = [...midRoute, ...atEnds.slice(0, Math.max(0, targetCount - midRoute.length))];
@@ -433,48 +437,96 @@ function updateBuses(state: BusState): SimulatedBus[] {
 
   return activeBuses.map((bus) => {
     let directionId = bus.direction_id;
+    let movingForward = bus.moving_forward;
     const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
 
     const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
     const distKm = (speed * elapsed) / 3600;
     const progressDelta = distKm / path.totalDistance;
-    let newProgress = bus.progress + progressDelta;
+
+    // Move forward or backward based on direction
+    let newProgress = movingForward
+      ? bus.progress + progressDelta
+      : bus.progress - progressDelta;
 
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
+    // Reached the END of route (outbound terminus)
     if (newProgress >= 0.995) {
-      // During ramp-down, buses that reach terminus are "parked" (removed next cycle)
       if (fleetFraction < 0.5 && !wasAtStop) {
-        newProgress = 1.0;
-        newStatus = "at_stop";
-        // This bus won't restart — it'll be filtered out next update
         return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
       }
 
       if (!wasAtStop) {
+        // Stop briefly at terminus before turning around
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        const oppositeDir = directionId === "0" ? "1" : "0";
-        const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
-        if (oppositePath) directionId = oppositeDir;
-        newProgress = 0.0;
+        // Turn around: try opposite direction path, else reverse on same path
+        const rpaths = routePaths.get(bus.route_id) || [];
+        const oppositePath = rpaths.find(p => p.directionId !== directionId);
+        if (oppositePath) {
+          directionId = oppositePath.directionId;
+          movingForward = true;
+          newProgress = 0.0;
+        } else {
+          // No opposite direction — reverse along the same path
+          movingForward = false;
+          newProgress = 1.0 - progressDelta;
+        }
         newStatus = "in_transit";
       }
-    } else {
-      const nearStop = path.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
-      if (nearStop && !wasAtStop && Math.random() < 0.4) {
+    }
+    // Reached the START of route (return terminus)
+    else if (newProgress <= 0.005) {
+      if (fleetFraction < 0.5 && !wasAtStop) {
+        return { ...bus, progress: 0.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      }
+
+      if (!wasAtStop) {
+        newProgress = 0.0;
         newStatus = "at_stop";
-        newProgress = bus.progress;
+      } else {
+        // Turn around: try opposite direction path, else reverse on same path
+        const rpaths = routePaths.get(bus.route_id) || [];
+        const oppositePath = rpaths.find(p => p.directionId !== directionId);
+        if (oppositePath) {
+          directionId = oppositePath.directionId;
+          movingForward = true;
+          newProgress = 0.0;
+        } else {
+          // No opposite direction — reverse forward on same path
+          movingForward = true;
+          newProgress = progressDelta;
+        }
+        newStatus = "in_transit";
+      }
+    }
+    // Mid-route: check for intermediate stops
+    else {
+      const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
+      const nearStop = activePath.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
+      if (nearStop && !wasAtStop && Math.random() < 0.3) {
+        newStatus = "at_stop";
+        newProgress = bus.progress; // stay at stop
       }
     }
 
     const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
-    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, newProgress);
-    const nextStop = activePath.stops.find((s) => s.distanceAlong > newProgress) || activePath.stops[0];
-    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * activePath.totalDistance : 0;
+    const clampedProgress = Math.max(0, Math.min(1, newProgress));
+    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, clampedProgress);
+
+    // Heading: flip 180° when going in reverse
+    const heading = movingForward ? pos.heading : (pos.heading + 180) % 360;
+
+    // Next stop depends on direction of travel
+    const nextStop = movingForward
+      ? activePath.stops.find((s) => s.distanceAlong > clampedProgress) || activePath.stops[activePath.stops.length - 1]
+      : [...activePath.stops].reverse().find((s) => s.distanceAlong < clampedProgress) || activePath.stops[0];
+
+    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - clampedProgress) * activePath.totalDistance : 0;
     const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
     const pDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
 
@@ -482,17 +534,17 @@ function updateBuses(state: BusState): SimulatedBus[] {
       ...bus,
       latitude: pos.lat,
       longitude: pos.lon,
-      heading: pos.heading,
+      heading,
       speed: newStatus === "at_stop" ? 0 : speed,
       timestamp: Date.now(),
-      progress: newProgress,
+      progress: clampedProgress,
       direction_id: directionId,
       next_stop_name: nextStop?.name || bus.next_stop_name,
       next_stop_id: nextStop?.stopId || bus.next_stop_id,
       eta_minutes: Math.round(eta),
       status: newStatus,
       passengers: Math.max(0, Math.min(60, bus.passengers + pDelta)),
-      moving_forward: true,
+      moving_forward: movingForward,
     };
   });
 }
