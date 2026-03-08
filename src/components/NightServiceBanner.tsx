@@ -1,35 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { useI18n } from "@/lib/i18n";
-import { Moon, Clock, Bus, ChevronDown, ChevronUp, Sun, Calendar } from "lucide-react";
-
-function useCountdown(targetIso: string | undefined) {
-  const [remaining, setRemaining] = useState("");
-
-  useState(() => {
-    if (!targetIso) return;
-    const target = new Date(targetIso).getTime();
-
-    const tick = () => {
-      const diff = Math.max(0, target - Date.now());
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setRemaining(
-        h > 0 ? `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s` : `${m}m ${String(s).padStart(2, "0")}s`
-      );
-    };
-
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  });
-
-  // Proper effect
-  import("react").then(({ useEffect: _ }) => {});
-
-  return remaining;
-}
+import { Moon, Clock, Sun, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 
 const NightServiceBanner = () => {
   const { t } = useI18n();
@@ -37,8 +9,7 @@ const NightServiceBanner = () => {
   const [expanded, setExpanded] = useState(false);
   const [countdown, setCountdown] = useState("");
 
-  // Countdown effect
-  useState(() => {
+  useEffect(() => {
     if (!refreshStatus.resumesAt) return;
     const target = new Date(refreshStatus.resumesAt).getTime();
 
@@ -57,7 +28,7 @@ const NightServiceBanner = () => {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  });
+  }, [refreshStatus.resumesAt]);
 
   if (refreshStatus.serviceStatus !== "night") return null;
 
@@ -117,21 +88,17 @@ const NightServiceBanner = () => {
                 <span>23:00</span>
               </div>
               <div className="h-2 rounded-full bg-muted/50 overflow-hidden flex">
-                {/* 0-5: no service */}
                 <div className="bg-muted-foreground/10" style={{ width: "20.8%" }} />
-                {/* 5-6: ramp up */}
                 <div className="bg-primary/30" style={{ width: "4.2%" }} />
-                {/* 6-23: full service */}
                 <div className="bg-primary/70" style={{ width: "70.8%" }} />
-                {/* 23-24: ramp down */}
                 <div className="bg-primary/20" style={{ width: "4.2%" }} />
               </div>
               <div className="flex items-center gap-3 mt-1.5">
                 <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-primary/70" /> {t.active}
+                  <span className="w-2 h-2 rounded-full bg-primary/70 inline-block" /> {t.active}
                 </span>
                 <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <span className="w-2 h-2 rounded-full bg-muted-foreground/10" /> {t.serviceNotActive}
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground/10 inline-block" /> {t.serviceNotActive}
                 </span>
               </div>
             </div>
