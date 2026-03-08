@@ -205,10 +205,16 @@ const RouteDetailView = () => {
                       }
                     />
                     {!isLast && (
-                      <div
-                        className="w-0.5 flex-1 min-h-[32px]"
+                      <div className="relative w-0.5 flex-1 min-h-[32px]"
                         style={{ backgroundColor: route.route_color, opacity: 0.3 }}
-                      />
+                      >
+                        {interStopMinutes[idx] !== undefined && (
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-medium text-muted-foreground flex items-center gap-0.5">
+                            <Timer className="w-2.5 h-2.5" />
+                            {interStopMinutes[idx]} min
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
