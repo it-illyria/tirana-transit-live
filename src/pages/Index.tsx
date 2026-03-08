@@ -29,6 +29,7 @@ const Index = () => {
           <MapView />
           <FloatingHeader onPlanTrip={() => setTripPlannerOpen(true)} />
           <BottomSheet />
+          <RouteDetailView />
           <LoadingOverlay />
           <OfflineIndicator />
           <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
