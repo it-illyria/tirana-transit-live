@@ -277,18 +277,92 @@ const MapView = () => {
   const [zoom, setZoom] = useState(13);
   const [showCongestion, setShowCongestion] = useState(false);
 
-  // Compute congestion levels for display
-  const congestionOverlay = useMemo(() => {
-    if (!showCongestion) return [];
-    const timeMult = getTimeMultiplier();
-    return CONGESTION_ZONES.map((zone) => {
-      const effectiveFactor = 1 + (zone.baseFactor - 1) * timeMult;
-      const level = getCongestionLevel(effectiveFactor);
-      const color = level === "low" ? "#22c55e" : level === "moderate" ? "#eab308" : level === "heavy" ? "#ef4444" : "#111111";
-      const opacity = level === "low" ? 0.15 : level === "moderate" ? 0.2 : level === "heavy" ? 0.25 : 0.35;
-      return { ...zone, effectiveFactor, level, color, opacity };
-    });
-  }, [showCongestion]);
+  // Build all route polylines with traffic coloring
+  const trafficRouteSegments = useMemo(() => {
+    if (!showCongestion || !data) return [];
+
+    const segments: { positions: [number, number][]; color: string; weight: number }[] = [];
+    const seenShapes = new Set<string>();
+
+    // Group shapes
+    const shapeGroups = new Map<string, { lat: number; lon: number; seq: number }[]>();
+    for (const s of data.shapes) {
+      const group = shapeGroups.get(s.shape_id) || [];
+      group.push({ lat: s.shape_pt_lat, lon: s.shape_pt_lon, seq: s.shape_pt_sequence });
+      shapeGroups.set(s.shape_id, group);
+    }
+
+    // For each route, get the shape and color segments by congestion
+    for (const trip of data.trips) {
+      if (!trip.shape_id || seenShapes.has(trip.shape_id)) continue;
+      seenShapes.add(trip.shape_id);
+
+      const shapePoints = shapeGroups.get(trip.shape_id);
+      if (!shapePoints || shapePoints.length < 2) continue;
+
+      const sorted = shapePoints.sort((a, b) => a.seq - b.seq);
+
+      // Sample every few points to create colored segments
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const p1 = sorted[i];
+        const p2 = sorted[i + 1];
+        const midLat = (p1.lat + p2.lat) / 2;
+        const midLon = (p1.lon + p2.lon) / 2;
+
+        const factor = getCongestionFactor(midLat, midLon);
+        const level = getCongestionLevel(factor);
+        const color =
+          level === "low" ? "#22c55e" :
+          level === "moderate" ? "#eab308" :
+          level === "heavy" ? "#ef4444" : "#111111";
+
+        segments.push({
+          positions: [[p1.lat, p1.lon], [p2.lat, p2.lon]],
+          color,
+          weight: level === "low" ? 4 : level === "moderate" ? 5 : 6,
+        });
+      }
+    }
+
+    // Fallback: routes without shapes — connect stops
+    const routesWithShapes = new Set(
+      data.trips.filter((t) => t.shape_id && shapeGroups.has(t.shape_id)).map((t) => t.route_id)
+    );
+    const stopMap = new Map(data.stops.map((s) => [s.stop_id, s]));
+    const seenRoutes = new Set<string>();
+
+    for (const trip of data.trips) {
+      if (routesWithShapes.has(trip.route_id) || seenRoutes.has(trip.route_id)) continue;
+      seenRoutes.add(trip.route_id);
+
+      const tripStops = data.stopTimes
+        .filter((st) => st.trip_id === trip.trip_id)
+        .sort((a, b) => a.stop_sequence - b.stop_sequence);
+
+      for (let i = 0; i < tripStops.length - 1; i++) {
+        const s1 = stopMap.get(tripStops[i].stop_id);
+        const s2 = stopMap.get(tripStops[i + 1].stop_id);
+        if (!s1 || !s2) continue;
+
+        const midLat = (s1.stop_lat + s2.stop_lat) / 2;
+        const midLon = (s1.stop_lon + s2.stop_lon) / 2;
+        const factor = getCongestionFactor(midLat, midLon);
+        const level = getCongestionLevel(factor);
+        const color =
+          level === "low" ? "#22c55e" :
+          level === "moderate" ? "#eab308" :
+          level === "heavy" ? "#ef4444" : "#111111";
+
+        segments.push({
+          positions: [[s1.stop_lat, s1.stop_lon], [s2.stop_lat, s2.stop_lon]],
+          color,
+          weight: level === "low" ? 4 : level === "moderate" ? 5 : 6,
+        });
+      }
+    }
+
+    return segments;
+  }, [showCongestion, data]);
 
   const handleBoundsChange = useCallback((newBounds: L.LatLngBounds) => {
     setBounds(newBounds);
