@@ -275,6 +275,20 @@ const MapView = () => {
   const { data, buses, selectedRouteId } = useGTFS();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
+  const [showCongestion, setShowCongestion] = useState(false);
+
+  // Compute congestion levels for display
+  const congestionOverlay = useMemo(() => {
+    if (!showCongestion) return [];
+    const timeMult = getTimeMultiplier();
+    return CONGESTION_ZONES.map((zone) => {
+      const effectiveFactor = 1 + (zone.baseFactor - 1) * timeMult;
+      const level = getCongestionLevel(effectiveFactor);
+      const color = level === "low" ? "#22c55e" : level === "moderate" ? "#eab308" : level === "heavy" ? "#f97316" : "#ef4444";
+      const opacity = level === "low" ? 0.15 : level === "moderate" ? 0.2 : level === "heavy" ? 0.25 : 0.3;
+      return { ...zone, effectiveFactor, level, color, opacity };
+    });
+  }, [showCongestion]);
 
   const handleBoundsChange = useCallback((newBounds: L.LatLngBounds) => {
     setBounds(newBounds);
