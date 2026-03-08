@@ -33,24 +33,38 @@ const stopIcon = new L.DivIcon({
   iconAnchor: [5, 5],
 });
 
-// Bus icon factory
-function createBusIcon(color: string, heading: number, routeName?: string) {
-  return new L.DivIcon({
-    className: "bus-marker",
-    html: `<div style="
-      width:22px;height:22px;
-      display:flex;align-items:center;justify-content:center;
-      transform:rotate(${heading}deg);
-      transition:transform 0.5s ease;
-      filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
-    ">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-      </svg>
-    </div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-  });
+// Bus icon factory with cache to avoid re-creating DivIcon objects
+const busIconCache = new Map<string, L.DivIcon>();
+function createBusIcon(color: string, heading: number) {
+  // Round heading to nearest 10° to limit cache entries
+  const roundedHeading = Math.round(heading / 10) * 10;
+  const key = `${color}_${roundedHeading}`;
+  let icon = busIconCache.get(key);
+  if (!icon) {
+    icon = new L.DivIcon({
+      className: "bus-marker",
+      html: `<div style="
+        width:22px;height:22px;
+        display:flex;align-items:center;justify-content:center;
+        transform:rotate(${roundedHeading}deg);
+        transition:transform 0.5s ease;
+        filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+      ">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    busIconCache.set(key, icon);
+    // Limit cache size
+    if (busIconCache.size > 500) {
+      const first = busIconCache.keys().next().value;
+      if (first) busIconCache.delete(first);
+    }
+  }
+  return icon;
 }
 
 // Track map viewport
