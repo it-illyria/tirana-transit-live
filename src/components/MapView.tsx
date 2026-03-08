@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
 import { Locate, Maximize, Minimize, Layers, Filter } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
+import { useTheme } from "@/hooks/use-theme";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
 import { predictArrivals, CONGESTION_ZONES, getCongestionLevel, getCongestionFactor, getTimeMultiplier, type ArrivalPrediction } from "@/lib/arrival-predictions";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
