@@ -119,9 +119,48 @@ function interpolateAlongPath(
   return { lat: last[0], lon: last[1], heading: bearing(prev[0], prev[1], last[0], last[1]) };
 }
 
-// ─── Speed ───────────────────────────────────────────────────────────────────
+// ─── Speed & Operating Hours ─────────────────────────────────────────────────
 
 const BASE_SPEED_KMH = 18;
+
+// Tirana buses operate ~5:00 – 23:00
+const SERVICE_START_HOUR = 5;   // first buses depart at 5:00
+const SERVICE_END_HOUR = 23;    // last departures at 23:00
+const RAMP_UP_MINUTES = 60;     // takes 60 min to reach full service (5:00-6:00)
+const RAMP_DOWN_MINUTES = 30;   // last buses finish routes by ~23:30
+
+/**
+ * Returns the fraction of fleet that should be active (0.0 – 1.0).
+ * Handles gradual morning startup and evening wind-down.
+ */
+function getFleetFraction(): number {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const totalMin = hour * 60 + minute;
+
+  const startMin = SERVICE_START_HOUR * 60;
+  const endMin = SERVICE_END_HOUR * 60;
+
+  // Dead of night: no buses
+  if (totalMin < startMin || totalMin > endMin + RAMP_DOWN_MINUTES) return 0;
+
+  // Morning ramp-up: gradual increase
+  if (totalMin < startMin + RAMP_UP_MINUTES) {
+    return (totalMin - startMin) / RAMP_UP_MINUTES;
+  }
+
+  // Evening ramp-down: gradual decrease
+  if (totalMin > endMin) {
+    return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
+  }
+
+  // Weekend: slightly reduced service (~80%)
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return 0.8;
+
+  return 1.0;
+}
 
 function getSpeedMultiplier(): number {
   const hour = new Date().getHours();
