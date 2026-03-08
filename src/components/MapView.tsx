@@ -569,6 +569,7 @@ const MapView = () => {
           </div>
         )}
       </MapContainer>
+      <RefreshStatusIndicator />
     </div>
   );
 };
