@@ -367,6 +367,8 @@ function updateBuses(state: BusState): SimulatedBus[] {
     newProgress = Math.max(0, Math.min(1, newProgress));
 
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
+    // Flip heading when moving in reverse so the arrow points correctly
+    if (!newForward) pos.heading = (pos.heading + 180) % 360;
     const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[path.stops.length - 1];
     const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance : 0;
     const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
