@@ -3,7 +3,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const GTFS_URL = "https://transitous.org/feeds/municipality-of-tirana~gtfs.zip";
+const GTFS_URL = "https://api.transitous.org/gtfs/al_tirana.gtfs.zip";
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
