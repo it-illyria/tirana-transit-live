@@ -333,13 +333,17 @@ function buildRoutePaths(data: any): RoutePath[] {
   return paths;
 }
 
-// ─── Generate initial buses ──────────────────────────────────────────────────
+// ─── Generate initial buses (respects operating hours) ───────────────────────
 
 function generateBuses(paths: RoutePath[]): SimulatedBus[] {
+  const fleetFraction = getFleetFraction();
+  if (fleetFraction <= 0) return []; // No service right now
+
   const buses: SimulatedBus[] = [];
   let idx = 0;
   for (const path of paths) {
-    const count = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+    const maxCount = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+    const count = Math.max(1, Math.round(maxCount * fleetFraction));
     for (let b = 0; b < count; b++) {
       const progress = (b / count + Math.random() * 0.05) % 1;
       const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, progress);
@@ -373,16 +377,33 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   return buses;
 }
 
-// ─── Update bus positions ────────────────────────────────────────────────────
+// ─── Update bus positions (with operating hours awareness) ───────────────────
 
 function updateBuses(state: BusState): SimulatedBus[] {
+  const fleetFraction = getFleetFraction();
+
+  // If service has ended, return empty
+  if (fleetFraction <= 0) return [];
+
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  return state.buses.map((bus) => {
+  // During ramp-down, progressively remove buses that reach terminus
+  const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
+  let activeBuses = state.buses;
+
+  // If we need fewer buses (evening), only keep a subset
+  if (fleetFraction < 1 && activeBuses.length > targetCount) {
+    // Keep buses that are mid-route, park ones at terminus
+    const midRoute = activeBuses.filter(b => b.progress > 0.05 && b.progress < 0.95);
+    const atEnds = activeBuses.filter(b => b.progress <= 0.05 || b.progress >= 0.95);
+    activeBuses = [...midRoute, ...atEnds.slice(0, Math.max(0, targetCount - midRoute.length))];
+  }
+
+  return activeBuses.map((bus) => {
     let directionId = bus.direction_id;
     const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
@@ -396,17 +417,21 @@ function updateBuses(state: BusState): SimulatedBus[] {
     let newStatus: SimulatedBus["status"] = "in_transit";
 
     if (newProgress >= 0.995) {
+      // During ramp-down, buses that reach terminus are "parked" (removed next cycle)
+      if (fleetFraction < 0.5 && !wasAtStop) {
+        newProgress = 1.0;
+        newStatus = "at_stop";
+        // This bus won't restart — it'll be filtered out next update
+        return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      }
+
       if (!wasAtStop) {
-        // Pause at terminus
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        // Switch to opposite direction for the return trip
         const oppositeDir = directionId === "0" ? "1" : "0";
         const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
-        if (oppositePath) {
-          directionId = oppositeDir;
-        }
+        if (oppositePath) directionId = oppositeDir;
         newProgress = 0.0;
         newStatus = "in_transit";
       }
