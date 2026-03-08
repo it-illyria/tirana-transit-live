@@ -10,6 +10,9 @@ export interface BusRefreshStatus {
   cached: boolean;
   age: number | null;
   busCount: number;
+  serviceStatus?: "active" | "night";
+  serviceMessage?: string;
+  source?: "simulation" | "gtfs-rt";
 }
 
 interface GTFSContextType {
