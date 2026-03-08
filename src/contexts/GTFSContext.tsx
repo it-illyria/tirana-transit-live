@@ -13,6 +13,7 @@ export interface BusRefreshStatus {
   serviceStatus?: "active" | "night";
   serviceMessage?: string;
   resumesAt?: string;
+  fleetFraction?: number;
   source?: "simulation" | "gtfs-rt";
 }
 
