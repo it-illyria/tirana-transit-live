@@ -278,6 +278,19 @@ const MapView = () => {
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
   const [showCongestion, setShowCongestion] = useState(false);
+  const [showRouteLegend, setShowRouteLegend] = useState(false);
+  const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
+
+  // Route legend data
+  const routeLegend = useMemo(() => {
+    if (!data) return [];
+    return data.routes.map((r) => ({
+      id: r.route_id,
+      name: r.route_short_name || r.route_long_name,
+      color: r.route_color || "#0066CC",
+      busCount: buses.filter((b) => b.route_id === r.route_id).length,
+    })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  }, [data, buses]);
 
   // Build all route polylines with traffic coloring
   const trafficRouteSegments = useMemo(() => {
