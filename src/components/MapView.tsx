@@ -159,16 +159,18 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
   const { t } = useI18n();
   const { buses } = useGTFS();
   const [fav, setFav] = useState(isFavorite(stop.stop_id));
+  const [isOpen, setIsOpen] = useState(false);
 
+  // Only compute predictions when popup is open
   const predictions = useMemo(() => {
-    if (!data || !buses.length) return [];
+    if (!isOpen || !data || !buses.length) return [];
     return predictArrivals(data, buses, stop.stop_id, 4);
-  }, [data, buses, stop.stop_id]);
+  }, [isOpen, data, buses, stop.stop_id]);
 
   const departures = useMemo(() => {
-    if (!data) return [];
+    if (!isOpen || !data) return [];
     return getUpcomingDepartures(data, stop.stop_id, 3);
-  }, [data, stop.stop_id]);
+  }, [isOpen, data, stop.stop_id]);
 
   const statusColor = (status: ArrivalPrediction["status"]) => {
     switch (status) {
@@ -198,7 +200,14 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
   };
 
   return (
-    <Marker position={[stop.stop_lat, stop.stop_lon]} icon={stopIcon}>
+    <Marker
+      position={[stop.stop_lat, stop.stop_lon]}
+      icon={stopIcon}
+      eventHandlers={{
+        popupopen: () => setIsOpen(true),
+        popupclose: () => setIsOpen(false),
+      }}
+    >
       <Popup>
         <div style={{ minWidth: 220, maxWidth: 280 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
