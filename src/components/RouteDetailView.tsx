@@ -413,6 +413,7 @@ const RouteDetailView = () => {
                       </div>
                     )}
                   </div>
+                  </div>
                 </div>
               );
             })}
