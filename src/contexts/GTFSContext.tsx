@@ -39,6 +39,8 @@ const GTFSContext = createContext<GTFSContextType>({
   setSelectedRouteId: () => {},
   selectedBusId: null,
   setSelectedBusId: () => {},
+  focusStopId: null,
+  setFocusStopId: () => {},
   retry: () => {},
 });
 
