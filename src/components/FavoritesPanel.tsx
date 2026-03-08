@@ -97,7 +97,8 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Content */}
