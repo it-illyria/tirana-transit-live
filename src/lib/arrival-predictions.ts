@@ -37,7 +37,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 /**
  * Get time-of-day traffic multiplier
  */
-function getTimeMultiplier(): number {
+export function getTimeMultiplier(): number {
   const hour = new Date().getHours();
   // Morning rush: 7-9
   if (hour >= 7 && hour <= 9) return 1.6;
