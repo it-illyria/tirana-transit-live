@@ -350,7 +350,9 @@ function updateBuses(state: BusState): SimulatedBus[] {
     const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
     const distKm = (speed * elapsed) / 3600;
     const progressDelta = distKm / path.totalDistance;
-    let newProgress = bus.progress + progressDelta;
+    const forward = bus.moving_forward !== false; // default true for legacy data
+    let newProgress = forward ? bus.progress + progressDelta : bus.progress - progressDelta;
+    let newForward = forward;
 
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
@@ -359,7 +361,10 @@ function updateBuses(state: BusState): SimulatedBus[] {
       newStatus = "at_stop";
       newProgress = bus.progress;
     }
-    if (newProgress >= 1) newProgress -= 1;
+    // Bounce at ends instead of wrapping
+    if (newProgress >= 1) { newProgress = 2 - newProgress; newForward = false; }
+    if (newProgress <= 0) { newProgress = -newProgress; newForward = true; }
+    newProgress = Math.max(0, Math.min(1, newProgress));
 
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
     const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[path.stops.length - 1];
