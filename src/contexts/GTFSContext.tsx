@@ -89,6 +89,18 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
         return;
       }
       const json = await res.json();
+      if (json.serviceStatus === "night") {
+        setBuses([]);
+        setRefreshStatus({
+          lastRefresh: Date.now(),
+          cached: false,
+          age: null,
+          busCount: 0,
+          serviceStatus: "night",
+          serviceMessage: json.message || "Shërbimi nuk është aktiv.",
+        });
+        return;
+      }
       if (json.buses && Array.isArray(json.buses)) {
         setBuses(json.buses);
         setRefreshStatus({
@@ -96,6 +108,8 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
           cached: !!json.cached,
           age: json.age ?? null,
           busCount: json.buses.length,
+          serviceStatus: "active",
+          source: json.source || "simulation",
         });
       }
     } catch (e) {
