@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { X, MapPin, ArrowDown, Clock, Users, AlertTriangle } from "lucide-react";
+import { X, MapPin, ArrowDown, Clock, Users, AlertTriangle, Timer } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
-import { predictArrivals, type ArrivalPrediction } from "@/lib/arrival-predictions";
+import { predictArrivals, getCongestionFactor, type ArrivalPrediction } from "@/lib/arrival-predictions";
 
 const RouteDetailView = () => {
   const { data, buses, selectedRouteId, setSelectedRouteId, setSelectedBusId } = useGTFS();
