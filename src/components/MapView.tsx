@@ -386,35 +386,61 @@ const MapView = () => {
     );
   }, [buses, bounds]);
 
-  // Route polyline for selected route
-  const routePolyline = useMemo(() => {
-    if (!data || !selectedRouteId) return null;
+  // Route polylines for selected route (both directions)
+  const routePolylines = useMemo(() => {
+    if (!data || !selectedRouteId) return [];
 
-    // Try shapes first
-    const trip = data.trips.find((t) => t.route_id === selectedRouteId);
-    if (trip?.shape_id && data.shapes.length > 0) {
-      const pts = data.shapes
-        .filter((s) => s.shape_id === trip.shape_id)
-        .sort((a, b) => a.shape_pt_sequence - b.shape_pt_sequence)
-        .map((s) => [s.shape_pt_lat, s.shape_pt_lon] as [number, number]);
-      if (pts.length > 0) return pts;
+    // Collect unique shape_ids for this route
+    const routeTrips = data.trips.filter((t) => t.route_id === selectedRouteId);
+    const seenShapes = new Set<string>();
+    const polylines: [number, number][][] = [];
+
+    // Group shapes by id for quick lookup
+    const shapeGroups = new Map<string, { lat: number; lon: number; seq: number }[]>();
+    for (const s of data.shapes) {
+      const group = shapeGroups.get(s.shape_id) || [];
+      group.push({ lat: s.shape_pt_lat, lon: s.shape_pt_lon, seq: s.shape_pt_sequence });
+      shapeGroups.set(s.shape_id, group);
     }
 
-    // Fallback: connect stops in trip order
-    const trips = data.trips.filter((t) => t.route_id === selectedRouteId);
-    if (trips.length === 0) return null;
+    for (const trip of routeTrips) {
+      if (trip.shape_id && !seenShapes.has(trip.shape_id)) {
+        seenShapes.add(trip.shape_id);
+        const pts = shapeGroups.get(trip.shape_id);
+        if (pts && pts.length > 0) {
+          const sorted = [...pts].sort((a, b) => a.seq - b.seq);
+          polylines.push(sorted.map((p) => [p.lat, p.lon] as [number, number]));
+        }
+      }
+    }
 
-    const tripStops = data.stopTimes
-      .filter((st) => st.trip_id === trips[0].trip_id)
-      .sort((a, b) => a.stop_sequence - b.stop_sequence);
+    // If we got shape-based polylines, return them
+    if (polylines.length > 0) return polylines;
 
+    // Fallback: connect stops for each direction
     const stopMap = new Map(data.stops.map((s) => [s.stop_id, s]));
-    return tripStops
-      .map((st) => {
-        const s = stopMap.get(st.stop_id);
-        return s ? [s.stop_lat, s.stop_lon] as [number, number] : null;
-      })
-      .filter(Boolean) as [number, number][];
+    const seenDirs = new Set<string>();
+
+    for (const trip of routeTrips) {
+      const dirKey = `${trip.route_id}_${trip.direction_id ?? 0}`;
+      if (seenDirs.has(dirKey)) continue;
+      seenDirs.add(dirKey);
+
+      const tripStops = data.stopTimes
+        .filter((st) => st.trip_id === trip.trip_id)
+        .sort((a, b) => a.stop_sequence - b.stop_sequence);
+
+      const pts = tripStops
+        .map((st) => {
+          const s = stopMap.get(st.stop_id);
+          return s ? [s.stop_lat, s.stop_lon] as [number, number] : null;
+        })
+        .filter(Boolean) as [number, number][];
+
+      if (pts.length > 0) polylines.push(pts);
+    }
+
+    return polylines;
   }, [data, selectedRouteId]);
 
   const routeColor = useMemo(() => {
@@ -446,13 +472,14 @@ const MapView = () => {
           <StopMarker key={stop.stop_id} stop={stop} data={data} />
         ))}
 
-        {/* Route polyline */}
-        {routePolyline && (
+        {/* Route polylines (both directions) */}
+        {routePolylines.map((polyline, idx) => (
           <Polyline
-            positions={routePolyline}
+            key={`route-${idx}`}
+            positions={polyline}
             pathOptions={{ color: routeColor, weight: 4, opacity: 0.8 }}
           />
-        )}
+        ))}
 
         {/* Buses */}
         {visibleBuses.map((bus) => (
