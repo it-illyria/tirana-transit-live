@@ -3,7 +3,7 @@ import RefreshStatusIndicator from "@/components/RefreshStatusIndicator";
 import WalkToStop from "@/components/WalkToStop";
 import L from "leaflet";
 import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
-import { Locate, Maximize, Minimize, Layers } from "lucide-react";
+import { Locate, Maximize, Minimize, Layers, Filter } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
