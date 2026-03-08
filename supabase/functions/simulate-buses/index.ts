@@ -374,12 +374,14 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   // Sort by trip count (most frequent routes first)
   candidates.sort((a, b) => b.trips - a.trips);
 
-  // During late hours with low fleet fraction, match Google Maps reality:
-  // only ~5-7 routes with 1 bus each finishing their last return trips
+  // During late hours, match Google Maps: ~5 routes with 1 bus each = 5-7 total
   let maxRoutes: number;
-  if (fleetFraction < 0.2) {
-    // Very late: only 5-7 top routes
-    maxRoutes = Math.min(7, Math.max(5, candidates.length));
+  if (fleetFraction <= 0.05) {
+    // Very late (after 22:30): only 5 top routes, 1 bus each
+    maxRoutes = Math.min(5, candidates.length);
+  } else if (fleetFraction < 0.2) {
+    // Late (21:00-22:30): 5-6 routes
+    maxRoutes = Math.min(6, candidates.length);
   } else if (fleetFraction < 0.5) {
     maxRoutes = Math.max(5, Math.ceil(candidates.length * fleetFraction * 2));
   } else {
@@ -389,11 +391,11 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   const selected = candidates.slice(0, maxRoutes);
 
   for (const c of selected) {
-    // During late hours: 1 bus per route (matching Google Maps behavior)
-    // During peak: scale with trip frequency
+    // Late hours: strictly 1 bus per route
+    // Peak: scale with frequency
     const busCount = fleetFraction >= 0.5
       ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
-      : c.trips > 6 ? 2 : 1;
+      : 1;
     active.set(c.routeId, busCount);
   }
 
