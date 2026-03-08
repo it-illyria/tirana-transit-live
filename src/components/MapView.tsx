@@ -222,7 +222,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                       textAlign: "center",
                     }}>{p.routeName}</span>
                     <span style={{ fontWeight: 700, color: "#333" }}>
-                      {p.predictedMinutes} min
+                      {p.predictedMinutes} {t.minutes}
                     </span>
                     <span style={{
                       fontSize: 9,
