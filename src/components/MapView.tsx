@@ -427,9 +427,47 @@ const MapView = () => {
           </Marker>
         ))}
 
+        {/* Congestion overlay */}
+        {congestionOverlay.map((zone) => (
+          <Circle
+            key={zone.name}
+            center={[zone.lat, zone.lon]}
+            radius={zone.radius * 1000}
+            pathOptions={{
+              color: zone.color,
+              fillColor: zone.color,
+              fillOpacity: zone.opacity,
+              weight: 2,
+              opacity: 0.6,
+            }}
+          >
+            <Tooltip direction="center" permanent={zoom >= 14} className="congestion-tooltip">
+              <div style={{ textAlign: "center", fontSize: 10, fontWeight: 600 }}>
+                <div>{zone.name}</div>
+                <div style={{ color: zone.color }}>
+                  {zone.level === "low" ? "🟢" : zone.level === "moderate" ? "🟡" : zone.level === "heavy" ? "🟠" : "🔴"}{" "}
+                  {zone.level.charAt(0).toUpperCase() + zone.level.slice(1)}
+                </div>
+              </div>
+            </Tooltip>
+          </Circle>
+        ))}
+
         <CenterOnBus />
         <LocateButton />
         <FullscreenButton />
+
+        {/* Congestion toggle */}
+        <button
+          onClick={() => setShowCongestion(!showCongestion)}
+          className={`absolute bottom-52 right-3 z-[1000] w-10 h-10 rounded-xl shadow-float flex items-center justify-center transition-colors ${
+            showCongestion ? "bg-primary text-primary-foreground" : "glass-surface hover:bg-accent"
+          }`}
+          aria-label="Toggle traffic"
+          title="Toggle traffic congestion"
+        >
+          <Layers className="w-5 h-5" />
+        </button>
       </MapContainer>
     </div>
   );
