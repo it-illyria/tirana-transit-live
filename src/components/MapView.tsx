@@ -67,18 +67,27 @@ function createBusIcon(color: string, heading: number) {
   return icon;
 }
 
-// Track map viewport
+// Debounced viewport tracker to avoid excessive re-renders during pan/zoom
 function ViewportTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLngBounds) => void }) {
   const onBoundsChangeRef = React.useRef(onBoundsChange);
   onBoundsChangeRef.current = onBoundsChange;
+  const timerRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+  const debouncedUpdate = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onBoundsChangeRef.current(map.getBounds());
+    }, 150);
+  }, []);
 
   const map = useMapEvents({
-    moveend: () => onBoundsChangeRef.current(map.getBounds()),
-    zoomend: () => onBoundsChangeRef.current(map.getBounds()),
+    moveend: debouncedUpdate,
+    zoomend: debouncedUpdate,
   });
 
   useEffect(() => {
     onBoundsChangeRef.current(map.getBounds());
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [map]);
 
   return null;
