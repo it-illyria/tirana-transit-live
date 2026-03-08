@@ -167,10 +167,10 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
 
   const statusLabel = (status: ArrivalPrediction["status"]) => {
     switch (status) {
-      case "on_time": return "On Time";
-      case "slightly_delayed": return "Slight Delay";
-      case "delayed": return "Delayed";
-      case "heavily_delayed": return "Heavy Delay";
+      case "on_time": return t.onTime;
+      case "slightly_delayed": return t.slightDelay;
+      case "delayed": return t.delayed;
+      case "heavily_delayed": return t.heavyDelay;
     }
   };
 
