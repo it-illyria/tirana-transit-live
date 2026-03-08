@@ -9,6 +9,7 @@ import TripPlannerModal from "@/components/TripPlannerModal";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import NearestStopWidget from "@/components/NearestStopWidget";
+import NightServiceBanner from "@/components/NightServiceBanner";
 import { useFavoriteAlerts } from "@/hooks/useFavoriteAlerts";
 
 function FavoriteAlertsRunner() {
@@ -39,6 +40,7 @@ const Index = () => {
           <RouteDetailView />
           <FavoriteAlertsRunner />
           <NearestStopWidget />
+          <NightServiceBanner />
           <LoadingOverlay />
           <OfflineIndicator />
           <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
