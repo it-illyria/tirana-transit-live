@@ -38,6 +38,7 @@ const Index = () => {
           <BottomSheet />
           <RouteDetailView />
           <FavoriteAlertsRunner />
+          <NearestStopWidget />
           <LoadingOverlay />
           <OfflineIndicator />
           <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
