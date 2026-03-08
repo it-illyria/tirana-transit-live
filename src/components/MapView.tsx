@@ -661,7 +661,7 @@ const MapView = () => {
         {/* Congestion Legend */}
         {showCongestion && (
           <div className="absolute top-3 left-3 z-[1000] glass-surface rounded-xl shadow-float p-3 max-w-[180px]">
-            <div className="text-xs font-bold text-foreground mb-2">Traffic Conditions</div>
+            <div className="text-xs font-bold text-foreground mb-2">{t.trafficConditions}</div>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#22c55e" }} />
