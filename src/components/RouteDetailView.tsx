@@ -76,7 +76,7 @@ function CountdownBadge({ minutes }: { minutes: number }) {
 
 const RouteDetailView = () => {
   const { data, buses, selectedRouteId, setSelectedRouteId, setSelectedBusId } = useGTFS();
-  const { formatted: tiranaTime, dateFormatted: tiranaDate } = useTiranaClock();
+  const { formatted: tiranaTime, dateFormatted: tiranaDate, tiranaMinutes } = useTiranaClock();
 
   const route = useMemo(() => {
     if (!data || !selectedRouteId) return null;
