@@ -75,6 +75,7 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
       </header>
 
       <NotificationSettingsPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <FavoritesPanel open={favsOpen} onClose={() => setFavsOpen(false)} />
     </>
   );
 };
