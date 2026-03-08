@@ -564,7 +564,7 @@ const MapView = () => {
                   </div>
                 )}
                 <div style={{ fontSize: 10, color: "#999", marginTop: 3 }}>
-                  👥 {bus.passengers} pasagjerë
+                  👥 {bus.passengers} {t.passengers}
                 </div>
               </div>
             </Popup>
