@@ -103,6 +103,8 @@ export const translations = {
     toggleTraffic: "Toggle traffic",
     // Refresh indicator
     secondsAgo: "s ago",
+    serviceNotActive: "Bus service is not active",
+    resumesIn: "Resumes in",
     // Nearest stop widget
     nearestStop: "Nearest Stop",
     metersAway: "m away",
