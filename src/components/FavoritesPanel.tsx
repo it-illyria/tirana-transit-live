@@ -131,10 +131,12 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
 
 function FavStopCard({
   stop,
+  routeFilter,
   onRemove,
   onLocate,
 }: {
   stop: { stop_id: string; stop_name: string };
+  routeFilter: string;
   onRemove: () => void;
   onLocate: () => void;
 }) {
@@ -143,13 +145,26 @@ function FavStopCard({
 
   const predictions = useMemo(() => {
     if (!data || !buses.length) return [];
-    return predictArrivals(data, buses, stop.stop_id, 4);
-  }, [data, buses, stop.stop_id]);
+    let preds = predictArrivals(data, buses, stop.stop_id, 8);
+    if (routeFilter !== "all") {
+      preds = preds.filter((p) => p.routeId === routeFilter);
+    }
+    return preds.slice(0, 4);
+  }, [data, buses, stop.stop_id, routeFilter]);
 
   const departures = useMemo(() => {
     if (!data) return [];
-    return getUpcomingDepartures(data, stop.stop_id, 3);
-  }, [data, stop.stop_id]);
+    let deps = getUpcomingDepartures(data, stop.stop_id, 8);
+    if (routeFilter !== "all") {
+      deps = deps.filter((d) => d.routeId === routeFilter);
+    }
+    return deps.slice(0, 3);
+  }, [data, stop.stop_id, routeFilter]);
+
+  // Hide card if filtered and no matching arrivals/departures
+  if (routeFilter !== "all" && predictions.length === 0 && departures.length === 0) {
+    return null;
+  }
 
   return (
     <div className="rounded-xl bg-secondary/50 border border-border p-3">
