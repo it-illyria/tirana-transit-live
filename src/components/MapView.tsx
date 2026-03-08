@@ -1,5 +1,6 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import RefreshStatusIndicator from "@/components/RefreshStatusIndicator";
+import WalkToStop from "@/components/WalkToStop";
 import L from "leaflet";
 import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
 import { Locate, Maximize, Minimize, Layers } from "lucide-react";
@@ -518,6 +519,7 @@ const MapView = () => {
         ))}
 
         <CenterOnBus />
+        <WalkToStop />
         <LocateButton />
         <FullscreenButton />
 
