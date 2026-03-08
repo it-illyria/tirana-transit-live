@@ -83,26 +83,44 @@ const RouteDetailView = () => {
     return data.routes.find((r) => r.route_id === selectedRouteId) || null;
   }, [data, selectedRouteId]);
 
-  // Get ordered stops for this route
+  // Get ordered stops for this route (BOTH directions for round-trip)
   const routeStops = useMemo(() => {
     if (!data || !selectedRouteId) return [];
 
-    // Find a trip for this route
-    const trip = data.trips.find((t) => t.route_id === selectedRouteId);
-    if (!trip) return [];
-
-    // Get stop times for this trip, ordered
-    const stopTimes = data.stopTimes
-      .filter((st) => st.trip_id === trip.trip_id)
-      .sort((a, b) => a.stop_sequence - b.stop_sequence);
+    const routeTrips = data.trips.filter((t) => t.route_id === selectedRouteId);
+    if (routeTrips.length === 0) return [];
 
     const stopMap = new Map(data.stops.map((s) => [s.stop_id, s]));
 
-    return stopTimes
-      .map((st) => {
+    // Group trips by direction_id, pick one trip per direction
+    const dirTrips = new Map<string, typeof routeTrips[0]>();
+    for (const trip of routeTrips) {
+      const dir = trip.direction_id ?? "0";
+      if (!dirTrips.has(dir)) dirTrips.set(dir, trip);
+    }
+
+    type StopEntry = {
+      stop_id: string; stop_name: string; stop_lat: number; stop_lon: number;
+      arrival_time: string; departure_time: string; sequence: number;
+      direction: string; directionLabel: string;
+    };
+
+    const allStops: StopEntry[] = [];
+    const dirs = Array.from(dirTrips.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    for (const [dir, trip] of dirs) {
+      const stopTimes = data.stopTimes
+        .filter((st) => st.trip_id === trip.trip_id)
+        .sort((a, b) => a.stop_sequence - b.stop_sequence);
+
+      const label = dirs.length > 1
+        ? (dir === "0" ? "Outbound" : "Return")
+        : "Route";
+
+      for (const st of stopTimes) {
         const stop = stopMap.get(st.stop_id);
-        if (!stop) return null;
-        return {
+        if (!stop) continue;
+        allStops.push({
           stop_id: stop.stop_id,
           stop_name: stop.stop_name,
           stop_lat: stop.stop_lat,
@@ -110,17 +128,13 @@ const RouteDetailView = () => {
           arrival_time: st.arrival_time,
           departure_time: st.departure_time,
           sequence: st.stop_sequence,
-        };
-      })
-      .filter(Boolean) as {
-        stop_id: string;
-        stop_name: string;
-        stop_lat: number;
-        stop_lon: number;
-        arrival_time: string;
-        departure_time: string;
-        sequence: number;
-      }[];
+          direction: dir,
+          directionLabel: label,
+        });
+      }
+    }
+
+    return allStops;
   }, [data, selectedRouteId]);
 
   // Get predictions for each stop
