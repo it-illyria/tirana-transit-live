@@ -33,22 +33,22 @@ const stopIcon = new L.DivIcon({
 });
 
 // Bus icon factory
-function createBusIcon(color: string, heading: number) {
+function createBusIcon(color: string, heading: number, routeName?: string) {
   return new L.DivIcon({
     className: "bus-marker",
     html: `<div style="
-      width:28px;height:28px;
-      background:${color};
-      border:2px solid white;
-      border-radius:6px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      width:22px;height:22px;
       display:flex;align-items:center;justify-content:center;
       transform:rotate(${heading}deg);
       transition:transform 0.5s ease;
-      color:white;font-size:14px;font-weight:bold;
-    ">🚌</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+      filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+    ">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    </div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
