@@ -331,10 +331,12 @@ const RouteDetailView = () => {
                         </p>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           <Clock className="w-2.5 h-2.5 inline mr-0.5" />
-                          {formatTime(stop.arrival_time)}
-                          {stop.departure_time !== stop.arrival_time && (
-                            <span> → {formatTime(stop.departure_time)}</span>
-                          )}
+                          <span className="font-mono font-semibold text-foreground">
+                            {realtimeETAs[idx] || formatTime(stop.arrival_time)}
+                          </span>
+                          <span className="ml-1 text-muted-foreground/60">
+                            (sched. {formatTime(stop.arrival_time)})
+                          </span>
                         </p>
                       </div>
                     </div>
