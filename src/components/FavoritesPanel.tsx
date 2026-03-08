@@ -114,6 +114,7 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               <FavStopCard
                 key={stop.stop_id}
                 stop={stop}
+                routeFilter={selectedRouteFilter}
                 onRemove={() => handleRemove(stop.stop_id)}
                 onLocate={() => {
                   setFocusStopId(stop.stop_id);
