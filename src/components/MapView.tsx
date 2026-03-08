@@ -5,7 +5,7 @@ import { Locate, Maximize, Minimize, Layers } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
-import { predictArrivals, CONGESTION_ZONES, getCongestionLevel, getTimeMultiplier, type ArrivalPrediction } from "@/lib/arrival-predictions";
+import { predictArrivals, CONGESTION_ZONES, getCongestionLevel, getCongestionFactor, getTimeMultiplier, type ArrivalPrediction } from "@/lib/arrival-predictions";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
