@@ -33,24 +33,38 @@ const stopIcon = new L.DivIcon({
   iconAnchor: [5, 5],
 });
 
-// Bus icon factory
-function createBusIcon(color: string, heading: number, routeName?: string) {
-  return new L.DivIcon({
-    className: "bus-marker",
-    html: `<div style="
-      width:22px;height:22px;
-      display:flex;align-items:center;justify-content:center;
-      transform:rotate(${heading}deg);
-      transition:transform 0.5s ease;
-      filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
-    ">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-      </svg>
-    </div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-  });
+// Bus icon factory with cache to avoid re-creating DivIcon objects
+const busIconCache = new Map<string, L.DivIcon>();
+function createBusIcon(color: string, heading: number) {
+  // Round heading to nearest 10° to limit cache entries
+  const roundedHeading = Math.round(heading / 10) * 10;
+  const key = `${color}_${roundedHeading}`;
+  let icon = busIconCache.get(key);
+  if (!icon) {
+    icon = new L.DivIcon({
+      className: "bus-marker",
+      html: `<div style="
+        width:22px;height:22px;
+        display:flex;align-items:center;justify-content:center;
+        transform:rotate(${roundedHeading}deg);
+        transition:transform 0.5s ease;
+        filter:drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+      ">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L4 18h16L12 2z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+    busIconCache.set(key, icon);
+    // Limit cache size
+    if (busIconCache.size > 500) {
+      const first = busIconCache.keys().next().value;
+      if (first) busIconCache.delete(first);
+    }
+  }
+  return icon;
 }
 
 // Track map viewport
@@ -145,16 +159,18 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
   const { t } = useI18n();
   const { buses } = useGTFS();
   const [fav, setFav] = useState(isFavorite(stop.stop_id));
+  const [isOpen, setIsOpen] = useState(false);
 
+  // Only compute predictions when popup is open
   const predictions = useMemo(() => {
-    if (!data || !buses.length) return [];
+    if (!isOpen || !data || !buses.length) return [];
     return predictArrivals(data, buses, stop.stop_id, 4);
-  }, [data, buses, stop.stop_id]);
+  }, [isOpen, data, buses, stop.stop_id]);
 
   const departures = useMemo(() => {
-    if (!data) return [];
+    if (!isOpen || !data) return [];
     return getUpcomingDepartures(data, stop.stop_id, 3);
-  }, [data, stop.stop_id]);
+  }, [isOpen, data, stop.stop_id]);
 
   const statusColor = (status: ArrivalPrediction["status"]) => {
     switch (status) {
@@ -184,7 +200,14 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
   };
 
   return (
-    <Marker position={[stop.stop_lat, stop.stop_lon]} icon={stopIcon}>
+    <Marker
+      position={[stop.stop_lat, stop.stop_lon]}
+      icon={stopIcon}
+      eventHandlers={{
+        popupopen: () => setIsOpen(true),
+        popupclose: () => setIsOpen(false),
+      }}
+    >
       <Popup>
         <div style={{ minWidth: 220, maxWidth: 280 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -302,16 +325,24 @@ const MapView = () => {
   const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
   const [directionFilter, setDirectionFilter] = useState<"all" | "0" | "1">("all");
 
-  // Route legend data
-  const routeLegend = useMemo(() => {
+  // Route legend data - only recompute route list when data changes, bus counts separately
+  const routeList = useMemo(() => {
     if (!data) return [];
     return data.routes.map((r) => ({
       id: r.route_id,
       name: r.route_short_name || r.route_long_name,
       color: r.route_color || "#0066CC",
-      busCount: buses.filter((b) => b.route_id === r.route_id).length,
     })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  }, [data, buses]);
+  }, [data]);
+
+  // Bus counts update with buses but are cheap to compute
+  const busCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of buses) {
+      map.set(b.route_id, (map.get(b.route_id) || 0) + 1);
+    }
+    return map;
+  }, [buses]);
 
   // Build all route polylines with traffic coloring
   const trafficRouteSegments = useMemo(() => {
@@ -616,7 +647,7 @@ const MapView = () => {
               <button
                 onClick={() => {
                   if (hiddenRoutes.size > 0) setHiddenRoutes(new Set());
-                  else setHiddenRoutes(new Set(routeLegend.map((r) => r.id)));
+                  else setHiddenRoutes(new Set(routeList.map((r) => r.id)));
                 }}
                 className="text-[10px] text-primary font-semibold hover:underline"
               >
@@ -640,7 +671,7 @@ const MapView = () => {
               ))}
             </div>
             <div className="overflow-y-auto space-y-1 flex-1">
-              {routeLegend.map((r) => {
+              {routeList.map((r) => {
                 const hidden = hiddenRoutes.has(r.id);
                 return (
                   <button
@@ -659,7 +690,7 @@ const MapView = () => {
                       style={{ backgroundColor: r.color }}
                     />
                     <span className="text-[11px] font-semibold text-foreground flex-1 truncate">{r.name}</span>
-                    <span className="text-[9px] text-muted-foreground">{r.busCount}</span>
+                    <span className="text-[9px] text-muted-foreground">{busCountMap.get(r.id) || 0}</span>
                   </button>
                 );
               })}
