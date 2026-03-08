@@ -103,6 +103,10 @@ export const translations = {
     toggleTraffic: "Toggle traffic",
     // Refresh indicator
     secondsAgo: "s ago",
+    // Nearest stop widget
+    nearestStop: "Nearest Stop",
+    metersAway: "m away",
+    noGps: "GPS not available",
   },
   sq: {
     appTitle: "UrbanTirana",
