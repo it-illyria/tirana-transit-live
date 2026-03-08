@@ -8,6 +8,12 @@ import RouteDetailView from "@/components/RouteDetailView";
 import TripPlannerModal from "@/components/TripPlannerModal";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import { useFavoriteAlerts } from "@/hooks/useFavoriteAlerts";
+
+function FavoriteAlertsRunner() {
+  useFavoriteAlerts();
+  return null;
+}
 
 const Index = () => {
   const [lang, setLang] = useState<Lang>("en");
@@ -30,6 +36,7 @@ const Index = () => {
           <FloatingHeader onPlanTrip={() => setTripPlannerOpen(true)} />
           <BottomSheet />
           <RouteDetailView />
+          <FavoriteAlertsRunner />
           <LoadingOverlay />
           <OfflineIndicator />
           <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
