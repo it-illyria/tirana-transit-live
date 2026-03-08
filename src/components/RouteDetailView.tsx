@@ -1,10 +1,74 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { X, MapPin, ArrowDown, Clock, Users, AlertTriangle, Timer } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { predictArrivals, getCongestionFactor, type ArrivalPrediction } from "@/lib/arrival-predictions";
 
+/** Live Tirana clock hook — updates every second */
+function useTiranaClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  // Format in Europe/Tirane timezone
+  const formatted = now.toLocaleTimeString("en-GB", {
+    timeZone: "Europe/Tirane",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const dateFormatted = now.toLocaleDateString("en-GB", {
+    timeZone: "Europe/Tirane",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return { now, formatted, dateFormatted };
+}
+
+/** Countdown hook — re-renders every second */
+function useCountdown() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return tick;
+}
+
+function CountdownBadge({ minutes }: { minutes: number }) {
+  useCountdown(); // force re-render every second
+  const [startedAt] = useState(() => Date.now());
+
+  const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
+  const totalSec = Math.max(0, minutes * 60 - elapsedSec);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+
+  if (totalSec <= 0) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-xs font-bold animate-pulse">
+        🚌 Arriving now
+      </span>
+    );
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${
+      totalSec <= 60 ? "bg-destructive text-destructive-foreground animate-pulse" :
+      totalSec <= 120 ? "bg-yellow-500 text-white" :
+      "bg-primary/15 text-primary"
+    }`}>
+      <Timer className="w-3 h-3" />
+      {m}:{s.toString().padStart(2, "0")}
+    </span>
+  );
+}
+
 const RouteDetailView = () => {
   const { data, buses, selectedRouteId, setSelectedRouteId, setSelectedBusId } = useGTFS();
+  const { formatted: tiranaTime, dateFormatted: tiranaDate } = useTiranaClock();
 
   const route = useMemo(() => {
     if (!data || !selectedRouteId) return null;
@@ -174,6 +238,15 @@ const RouteDetailView = () => {
                 </span>
               )}
             </div>
+            {/* Tirana real-time clock */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-mono text-primary font-bold">
+                🕐 {tiranaTime}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                {tiranaDate}
+              </span>
+            </div>
           </div>
           <button
             onClick={() => setSelectedRouteId(null)}
@@ -267,12 +340,12 @@ const RouteDetailView = () => {
                       </div>
                     )}
 
-                    {/* Predictions */}
+                    {/* Predictions with countdown */}
                     {predictions.length > 0 && (
-                      <div className="mt-1.5 space-y-0.5">
+                      <div className="mt-1.5 space-y-1">
                         {predictions.map((p, pi) => (
                           <div key={pi} className="flex items-center gap-2 text-xs">
-                            <span className="font-bold text-foreground">{p.predictedMinutes} min</span>
+                            <CountdownBadge minutes={p.predictedMinutes} />
                             <span className={`text-[9px] px-1.5 py-0.5 rounded text-white font-semibold ${statusColor(p.status)}`}>
                               {statusLabel(p.status)}
                             </span>
