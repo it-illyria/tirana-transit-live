@@ -210,6 +210,8 @@ export const translations = {
     toggleTraffic: "Trafiku",
     // Refresh indicator
     secondsAgo: "s më parë",
+    serviceNotActive: "Shërbimi i autobusëve nuk është aktiv",
+    resumesIn: "Rifillon për",
     // Nearest stop widget
     nearestStop: "Stacioni më i afërt",
     metersAway: "m larg",

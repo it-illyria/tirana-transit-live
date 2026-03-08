@@ -99,6 +99,7 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
           busCount: 0,
           serviceStatus: "night",
           serviceMessage: json.message || "Shërbimi nuk është aktiv.",
+          resumesAt: json.resumesAt,
         });
         return;
       }
