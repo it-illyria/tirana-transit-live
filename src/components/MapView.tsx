@@ -325,16 +325,24 @@ const MapView = () => {
   const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
   const [directionFilter, setDirectionFilter] = useState<"all" | "0" | "1">("all");
 
-  // Route legend data
-  const routeLegend = useMemo(() => {
+  // Route legend data - only recompute route list when data changes, bus counts separately
+  const routeList = useMemo(() => {
     if (!data) return [];
     return data.routes.map((r) => ({
       id: r.route_id,
       name: r.route_short_name || r.route_long_name,
       color: r.route_color || "#0066CC",
-      busCount: buses.filter((b) => b.route_id === r.route_id).length,
     })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  }, [data, buses]);
+  }, [data]);
+
+  // Bus counts update with buses but are cheap to compute
+  const busCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of buses) {
+      map.set(b.route_id, (map.get(b.route_id) || 0) + 1);
+    }
+    return map;
+  }, [buses]);
 
   // Build all route polylines with traffic coloring
   const trafficRouteSegments = useMemo(() => {
