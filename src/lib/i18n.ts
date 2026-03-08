@@ -208,6 +208,10 @@ export const translations = {
     toggleTraffic: "Trafiku",
     // Refresh indicator
     secondsAgo: "s më parë",
+    // Nearest stop widget
+    nearestStop: "Stacioni më i afërt",
+    metersAway: "m larg",
+    noGps: "GPS nuk është i disponueshëm",
   },
 } as const;
 
