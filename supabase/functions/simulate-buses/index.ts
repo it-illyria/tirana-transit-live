@@ -501,26 +501,36 @@ function updateBuses(state: BusState): SimulatedBus[] {
 
     // Reached the END of route (outbound terminus)
     if (newProgress >= 0.995) {
-      if (fleetFraction < 0.5 && !wasAtStop) {
-        return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      // After last departures OR during heavy ramp-down: bus is done, park it
+      if (returnOnly || (fleetFraction < 0.3 && !movingForward === false)) {
+        // Bus reached terminus — if going forward, turn around for return
+        // If already returning and reached end, park
+        if (!movingForward) {
+          // Return trip complete — this bus is done for the night
+          return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now(), moving_forward: false };
+        }
       }
 
       if (!wasAtStop) {
-        // Stop briefly at terminus before turning around
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        // Turn around: try opposite direction path, else reverse on same path
-        const rpaths = routePaths.get(bus.route_id) || [];
-        const oppositePath = rpaths.find(p => p.directionId !== directionId);
-        if (oppositePath) {
-          directionId = oppositePath.directionId;
-          movingForward = true;
-          newProgress = 0.0;
-        } else {
-          // No opposite direction — reverse along the same path
+        // Turn around for return trip
+        if (returnOnly) {
+          // After last departures: MUST go back, no new outbound trips
           movingForward = false;
           newProgress = 1.0 - progressDelta;
+        } else {
+          const rpaths = routePaths.get(bus.route_id) || [];
+          const oppositePath = rpaths.find(p => p.directionId !== directionId);
+          if (oppositePath) {
+            directionId = oppositePath.directionId;
+            movingForward = true;
+            newProgress = 0.0;
+          } else {
+            movingForward = false;
+            newProgress = 1.0 - progressDelta;
+          }
         }
         newStatus = "in_transit";
       }
