@@ -108,24 +108,54 @@ const BottomSheet = () => {
         <div className="px-4 pb-8 max-h-[50vh] overflow-y-auto">
           {tab === "routes" && (
             <div className="space-y-2 animate-in fade-in duration-200">
-              {routes.map((route) => (
-                <button
-                  key={route.route_id}
-                  onClick={() => { setSelectedRouteId(route.route_id); }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors text-left shadow-sm"
-                >
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{ backgroundColor: route.route_color, color: "white" }}
+              {routes.map((route) => {
+                const routeBuses = activeBusesByRoute.get(route.route_id) || [];
+                const atStop = routeBuses.filter(b => b.status === "at_stop").length;
+                const inTransit = routeBuses.filter(b => b.status === "in_transit").length;
+
+                return (
+                  <button
+                    key={route.route_id}
+                    onClick={() => { setSelectedRouteId(route.route_id); }}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors text-left shadow-sm"
                   >
-                    {route.route_short_name || <Bus className="w-5 h-5" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground">{route.route_short_name} {route.route_long_name}</p>
-                  </div>
-                  <span className="text-xs font-medium text-primary">{t.liveTracking}</span>
-                </button>
-              ))}
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ backgroundColor: route.route_color, color: "white" }}
+                    >
+                      {route.route_short_name || <Bus className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">{route.route_short_name} {route.route_long_name}</p>
+                      {routeBuses.length > 0 && (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] font-medium text-primary">
+                            🚌 {routeBuses.length} active
+                          </span>
+                          {inTransit > 0 && (
+                            <span className="text-[10px] text-green-600 font-medium">
+                              {inTransit} moving
+                            </span>
+                          )}
+                          {atStop > 0 && (
+                            <span className="text-[10px] text-yellow-600 font-medium">
+                              {atStop} at stop
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-xs font-medium text-primary">{t.liveTracking}</span>
+                      {routeBuses.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground font-semibold">
+                          {routeBuses.length} 🚌
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
               {routes.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-6">{t.noResults}</p>
               )}

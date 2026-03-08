@@ -150,3 +150,8 @@ All colors MUST be HSL.
 .leaflet-control-zoom a:last-child {
   border-radius: 0 0 var(--radius) var(--radius) !important;
 }
+
+/* Smooth bus marker movement */
+.leaflet-marker-icon.bus-marker {
+  transition: transform 1.5s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+}
