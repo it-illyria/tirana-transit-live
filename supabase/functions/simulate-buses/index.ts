@@ -43,9 +43,19 @@ interface RoutePath {
   routeName: string;
 }
 
+/** Per-route schedule: which hours have active trips, and how many buses per hour */
+interface RouteSchedule {
+  routeId: string;
+  routeName: string;
+  /** Map of hour (0-23) → number of trips departing in that hour */
+  tripsByHour: Record<number, number>;
+  lastDepartureHour: number;
+}
+
 interface BusState {
   buses: SimulatedBus[];
   paths: RoutePath[];
+  schedules: RouteSchedule[];
   lastUpdate: number;
 }
 
