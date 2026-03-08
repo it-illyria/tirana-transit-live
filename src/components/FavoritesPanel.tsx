@@ -1,10 +1,17 @@
 import { useMemo, useEffect, useState } from "react";
-import { Star, MapPin, X, AlertTriangle, Clock, Navigation } from "lucide-react";
+import { Star, MapPin, X, AlertTriangle, Clock, Navigation, Filter } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites, toggleFavorite } from "@/lib/favorites";
 import { predictArrivals } from "@/lib/arrival-predictions";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
 import { useI18n } from "@/lib/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   open: boolean;
