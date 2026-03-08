@@ -3,6 +3,7 @@ import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites } from "@/lib/favorites";
 import { predictArrivals } from "@/lib/arrival-predictions";
 import { getNotificationSettings } from "@/lib/notification-settings";
+import { toast } from "sonner";
 
 const CHECK_INTERVAL_MS = 15_000;
 const COOLDOWN_MS = 5 * 60_000;
@@ -26,7 +27,6 @@ export function useFavoriteAlerts() {
     const settings = getNotificationSettings();
     if (!settings.enabled) return;
     if (!data || buses.length === 0) return;
-    if (permissionRef.current !== "granted") return;
 
     const favs = getFavorites();
     if (favs.length === 0) return;
@@ -48,12 +48,31 @@ export function useFavoriteAlerts() {
         if (notifiedRef.current.has(key)) continue;
         notifiedRef.current.set(key, now);
 
-        const mins = pred.predictedMinutes <= 0 ? "now" : `${pred.predictedMinutes} min`;
-        new Notification(`🚌 Bus ${pred.routeName} arriving ${mins}`, {
-          body: `At ${stopName} — ${pred.stopsAway} stop${pred.stopsAway !== 1 ? "s" : ""} away`,
-          icon: "/favicon.ico",
-          tag: key,
+        const mins = pred.predictedMinutes <= 0 ? "now" : `in ${pred.predictedMinutes} min`;
+        const title = `🚌 Bus ${pred.routeName} arriving ${mins}`;
+        const body = `At ${stopName} — ${pred.stopsAway} stop${pred.stopsAway !== 1 ? "s" : ""} away`;
+
+        // In-app toast notification (always shown when app is focused)
+        toast(title, {
+          description: body,
+          duration: 8000,
+          icon: "🚌",
         });
+
+        // Browser push notification (shown when tab is in background)
+        if (permissionRef.current === "granted" && document.hidden) {
+          try {
+            new Notification(title, {
+              body,
+              icon: "/pwa-icon-192.png",
+              tag: key,
+              badge: "/pwa-icon-192.png",
+              vibrate: [200, 100, 200],
+            });
+          } catch {
+            // Notification API may not be available in all contexts
+          }
+        }
       }
     }
   }, [data, buses]);
