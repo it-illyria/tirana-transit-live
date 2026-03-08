@@ -1,7 +1,6 @@
-import { motion } from "motion/react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
-import { Bus, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 const LoadingOverlay = () => {
   const { t } = useI18n();
@@ -10,12 +9,7 @@ const LoadingOverlay = () => {
   if (!loading && !error) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[3000] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-    >
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="bg-card rounded-2xl shadow-float p-8 max-w-xs w-full text-center">
         {loading ? (
           <>
@@ -24,7 +18,6 @@ const LoadingOverlay = () => {
             </div>
             <h2 className="text-base font-semibold text-foreground mb-2">{t.loading}</h2>
             <p className="text-xs text-muted-foreground">{progress}</p>
-            {/* Skeleton bars */}
             <div className="mt-4 space-y-2">
               <div className="h-3 bg-muted rounded-full animate-pulse" />
               <div className="h-3 bg-muted rounded-full animate-pulse w-3/4" />
@@ -47,7 +40,7 @@ const LoadingOverlay = () => {
           </>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

@@ -4,9 +4,15 @@ import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites } from "@/lib/favorites";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
-import { motion, AnimatePresence } from "motion/react";
 
 type Tab = "routes" | "buses" | "favorites";
+
+interface FavoriteStopCardProps {
+  stop: {
+    stop_id: string;
+    stop_name: string;
+  };
+}
 
 const BottomSheet = () => {
   const { t } = useI18n();
@@ -99,88 +105,86 @@ const BottomSheet = () => {
 
         {/* Content */}
         <div className="px-4 pb-8 max-h-[50vh] overflow-y-auto">
-          <AnimatePresence mode="wait">
-            {tab === "routes" && (
-              <motion.div key="routes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-                {routes.map((route) => (
-                  <button
-                    key={route.route_id}
-                    onClick={() => { setSelectedRouteId(route.route_id); }}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors text-left shadow-sm"
+          {tab === "routes" && (
+            <div className="space-y-2 animate-in fade-in duration-200">
+              {routes.map((route) => (
+                <button
+                  key={route.route_id}
+                  onClick={() => { setSelectedRouteId(route.route_id); }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-card hover:bg-accent transition-colors text-left shadow-sm"
+                >
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                    style={{ backgroundColor: route.route_color, color: "white" }}
                   >
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-                      style={{ backgroundColor: route.route_color, color: "white" }}
-                    >
-                      {route.route_short_name || <Bus className="w-5 h-5" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground">{route.route_short_name} {route.route_long_name}</p>
-                    </div>
-                    <span className="text-xs font-medium text-primary">{t.liveTracking}</span>
-                  </button>
-                ))}
-                {routes.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">{t.noResults}</p>
-                )}
-              </motion.div>
-            )}
-
-            {tab === "buses" && (
-              <motion.div key="buses" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-                {Array.from(activeBusesByRoute.entries()).map(([routeId, routeBuses]) => {
-                  const route = data?.routes.find((r) => r.route_id === routeId);
-                  return (
-                    <div key={routeId}>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <div
-                          className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
-                          style={{ backgroundColor: route?.route_color || "#0066CC", color: "white" }}
-                        >
-                          {route?.route_short_name?.slice(0, 3) || "?"}
-                        </div>
-                        <span className="text-xs font-semibold text-foreground">{route?.route_long_name || routeId}</span>
-                      </div>
-                      {routeBuses.map((bus) => (
-                        <button
-                          key={bus.vehicle_id}
-                          onClick={() => { setSelectedBusId(bus.vehicle_id); setSelectedRouteId(routeId); }}
-                          className="w-full flex items-center gap-3 p-2 pl-8 rounded-lg hover:bg-accent transition-colors text-left"
-                        >
-                          <span className="text-xs text-muted-foreground">{bus.vehicle_id}</span>
-                          <span className="text-xs text-foreground">{Math.round(bus.speed)} km/h</span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-                {buses.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">{t.noResults}</p>
-                )}
-              </motion.div>
-            )}
-
-            {tab === "favorites" && (
-              <motion.div key="favorites" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-                {favoriteStops.length > 0 ? (
-                  favoriteStops.map((stop) => <FavoriteStopCard key={stop.stop_id} stop={stop} />)
-                ) : (
-                  <div className="text-center py-8">
-                    <Star className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">{t.noFavorites}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{t.tapToAdd}</p>
+                    {route.route_short_name || <Bus className="w-5 h-5" />}
                   </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">{route.route_short_name} {route.route_long_name}</p>
+                  </div>
+                  <span className="text-xs font-medium text-primary">{t.liveTracking}</span>
+                </button>
+              ))}
+              {routes.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">{t.noResults}</p>
+              )}
+            </div>
+          )}
+
+          {tab === "buses" && (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              {Array.from(activeBusesByRoute.entries()).map(([routeId, routeBuses]) => {
+                const route = data?.routes.find((r) => r.route_id === routeId);
+                return (
+                  <div key={routeId}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div
+                        className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: route?.route_color || "#0066CC", color: "white" }}
+                      >
+                        {route?.route_short_name?.slice(0, 3) || "?"}
+                      </div>
+                      <span className="text-xs font-semibold text-foreground">{route?.route_long_name || routeId}</span>
+                    </div>
+                    {routeBuses.map((bus) => (
+                      <button
+                        key={bus.vehicle_id}
+                        onClick={() => { setSelectedBusId(bus.vehicle_id); setSelectedRouteId(routeId); }}
+                        className="w-full flex items-center gap-3 p-2 pl-8 rounded-lg hover:bg-accent transition-colors text-left"
+                      >
+                        <span className="text-xs text-muted-foreground">{bus.vehicle_id}</span>
+                        <span className="text-xs text-foreground">{Math.round(bus.speed)} km/h</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+              {buses.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">{t.noResults}</p>
+              )}
+            </div>
+          )}
+
+          {tab === "favorites" && (
+            <div className="space-y-2 animate-in fade-in duration-200">
+              {favoriteStops.length > 0 ? (
+                favoriteStops.map((stop) => <FavoriteStopCard key={stop.stop_id} stop={stop} />)
+              ) : (
+                <div className="text-center py-8">
+                  <Star className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">{t.noFavorites}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.tapToAdd}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-function FavoriteStopCard({ stop }: { stop: { stop_id: string; stop_name: string } }) {
+function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
   const { t } = useI18n();
   const { data } = useGTFS();
 
