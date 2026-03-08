@@ -56,6 +56,7 @@ export interface SimulatedBus {
   status: "in_transit" | "at_stop" | "delayed";
   passengers: number;
   direction_id: string;
+  moving_forward?: boolean;
 }
 
 export interface GTFSData {
