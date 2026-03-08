@@ -351,28 +351,43 @@ function buildRouteSchedules(data: any): RouteSchedule[] {
 
 /**
  * Returns route IDs that should have active buses at the current Tirana time.
- * During late hours, only routes with scheduled trips in recent hours are active.
- * Each route gets a bus count based on its schedule frequency.
+ * During late hours, only routes with the most scheduled trips remain active.
  */
-function getActiveRoutes(schedules: RouteSchedule[]): Map<string, number> {
+function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map<string, number> {
   const now = getTiranaTime();
   const currentHour = now.getHours();
   const active = new Map<string, number>();
 
+  // Collect routes with trips in current or previous hour
+  const candidates: { routeId: string; trips: number }[] = [];
   for (const sched of schedules) {
-    // Check if this route has trips in the current hour or the previous hour
-    // (to account for buses still completing trips from the previous hour)
     const currentTrips = sched.tripsByHour[currentHour] || 0;
     const prevTrips = sched.tripsByHour[(currentHour - 1 + 24) % 24] || 0;
-
-    if (currentTrips > 0) {
-      // Route has active departures this hour
-      // Scale bus count: 1-2 buses for low frequency, 3-4 for high
-      active.set(sched.routeId, Math.min(4, Math.max(1, Math.ceil(currentTrips / 3))));
-    } else if (prevTrips > 0 && currentHour >= 20) {
-      // Late evening: buses from previous hour still completing return trips
-      active.set(sched.routeId, Math.max(1, Math.ceil(prevTrips / 5)));
+    const totalRelevant = currentTrips + (currentHour >= 20 ? prevTrips * 0.3 : 0);
+    if (totalRelevant > 0) {
+      candidates.push({ routeId: sched.routeId, trips: totalRelevant });
     }
+  }
+
+  if (candidates.length === 0) return active;
+
+  // Sort by trip count (most frequent routes first)
+  candidates.sort((a, b) => b.trips - a.trips);
+
+  // During late hours with low fleet fraction, only keep the top routes
+  // Target: roughly match what Google Maps shows (5-8 routes with 1-2 buses each)
+  const maxRoutes = fleetFraction >= 0.5
+    ? candidates.length
+    : Math.max(3, Math.ceil(candidates.length * fleetFraction * 3));
+
+  const selected = candidates.slice(0, maxRoutes);
+
+  for (const c of selected) {
+    // 1 bus per route during late hours, 1-2 for high-frequency routes during peak
+    const busCount = fleetFraction >= 0.5
+      ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
+      : c.trips > 4 ? 2 : 1;
+    active.set(c.routeId, busCount);
   }
 
   return active;
