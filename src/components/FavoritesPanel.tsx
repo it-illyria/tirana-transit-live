@@ -22,6 +22,7 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
   const { t } = useI18n();
   const { data, buses, setFocusStopId } = useGTFS();
   const [favIds, setFavIds] = useState<string[]>([]);
+  const [selectedRouteFilter, setSelectedRouteFilter] = useState<string>("all");
 
   // Re-read favorites when panel opens or buses update (triggers re-render)
   useEffect(() => {
@@ -32,6 +33,20 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
     if (!data) return [];
     return data.stops.filter((s) => favIds.includes(s.stop_id));
   }, [data, favIds]);
+
+  // Get unique routes serving favorite stops
+  const availableRoutes = useMemo(() => {
+    if (!data || favoriteStops.length === 0) return [];
+    const routeIds = new Set<string>();
+    favoriteStops.forEach((stop) => {
+      const stopTimes = data.stopTimes.filter((st) => st.stop_id === stop.stop_id);
+      stopTimes.forEach((st) => {
+        const trip = data.trips.find((tr) => tr.trip_id === st.trip_id);
+        if (trip) routeIds.add(trip.route_id);
+      });
+    });
+    return data.routes.filter((r) => routeIds.has(r.route_id));
+  }, [data, favoriteStops]);
 
   const handleRemove = (stopId: string) => {
     toggleFavorite(stopId);
