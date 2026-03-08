@@ -519,6 +519,7 @@ const MapView = () => {
         ))}
 
         <CenterOnBus />
+        <WalkToStop />
         <LocateButton />
         <FullscreenButton />
 
