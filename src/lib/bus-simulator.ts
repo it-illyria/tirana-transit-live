@@ -255,6 +255,7 @@ export function generateSimulatedBuses(data: GTFSData): SimulatedBus[] {
         status: Math.random() < 0.1 ? "at_stop" : "in_transit",
         passengers: Math.floor(Math.random() * 50) + 5,
         direction_id: path.directionId,
+        moving_forward: true,
       });
     }
   }
@@ -281,8 +282,9 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
     const currentSpeed = BASE_SPEED_KMH * speedMult * (0.8 + Math.random() * 0.4);
     const distanceKm = (currentSpeed * updateIntervalSec) / 3600;
     const progressDelta = distanceKm / path.totalDistance;
-
-    let newProgress = bus.progress + progressDelta;
+    const forward = bus.moving_forward !== false;
+    let newProgress = forward ? bus.progress + progressDelta : bus.progress - progressDelta;
+    let newForward = forward;
 
     // At stop behavior: pause briefly
     const wasAtStop = bus.status === "at_stop";
@@ -298,10 +300,10 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       newProgress = bus.progress;
     }
 
-    // Wrap around when reaching the end
-    if (newProgress >= 1) {
-      newProgress = newProgress - 1;
-    }
+    // Bounce at ends instead of wrapping
+    if (newProgress >= 1) { newProgress = 2 - newProgress; newForward = false; }
+    if (newProgress <= 0) { newProgress = -newProgress; newForward = true; }
+    newProgress = Math.max(0, Math.min(1, newProgress));
 
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
 
@@ -328,6 +330,7 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       eta_minutes: Math.round(etaMinutes),
       status: newStatus,
       passengers: Math.max(0, Math.min(60, bus.passengers + passengerDelta)),
+      moving_forward: newForward,
     };
   });
 }
