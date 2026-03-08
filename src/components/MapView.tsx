@@ -300,6 +300,7 @@ const MapView = () => {
   const [showCongestion, setShowCongestion] = useState(false);
   const [showRouteLegend, setShowRouteLegend] = useState(false);
   const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
+  const [directionFilter, setDirectionFilter] = useState<"all" | "0" | "1">("all");
 
   // Route legend data
   const routeLegend = useMemo(() => {
