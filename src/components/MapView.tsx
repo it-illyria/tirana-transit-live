@@ -683,12 +683,12 @@ const MapView = () => {
             <div className="mt-2 pt-2 border-t border-border">
               <div className="text-[10px] text-muted-foreground">
                 {new Date().getHours() >= 7 && new Date().getHours() <= 9
-                  ? "🕐 Morning rush hour"
+                  ? `🕐 ${t.morningRush}`
                   : new Date().getHours() >= 17 && new Date().getHours() <= 19
-                  ? "🕐 Evening rush hour"
+                  ? `🕐 ${t.eveningRush}`
                   : new Date().getHours() >= 22 || new Date().getHours() <= 5
-                  ? "🌙 Low traffic period"
-                  : "🕐 Normal traffic"}
+                  ? `🌙 ${t.lowTrafficPeriod}`
+                  : `🕐 ${t.normalTraffic}`}
               </div>
             </div>
           </div>
