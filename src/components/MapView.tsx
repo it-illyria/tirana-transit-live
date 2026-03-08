@@ -472,13 +472,14 @@ const MapView = () => {
           <StopMarker key={stop.stop_id} stop={stop} data={data} />
         ))}
 
-        {/* Route polyline */}
-        {routePolyline && (
+        {/* Route polylines (both directions) */}
+        {routePolylines.map((polyline, idx) => (
           <Polyline
-            positions={routePolyline}
+            key={`route-${idx}`}
+            positions={polyline}
             pathOptions={{ color: routeColor, weight: 4, opacity: 0.8 }}
           />
-        )}
+        ))}
 
         {/* Buses */}
         {visibleBuses.map((bus) => (
