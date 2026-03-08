@@ -384,6 +384,8 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
   if (fleetFraction <= 0) return [];
 
+  const returnOnly = isReturnTripsOnly();
+
   // Group paths by routeId to create round-trip pairs
   const routePaths = new Map<string, RoutePath[]>();
   for (const p of paths) {
@@ -396,20 +398,22 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   let idx = 0;
 
   for (const [routeId, rpaths] of routePaths) {
-    // Use the first direction path for bus count calculation
     const primaryPath = rpaths[0];
     const maxCount = Math.min(2 + Math.floor(primaryPath.totalDistance / 5), 4);
     const count = Math.max(1, Math.round(maxCount * fleetFraction));
 
     for (let b = 0; b < count; b++) {
-      // Alternate buses between outbound and return
-      const goingForward = b % 2 === 0;
-      // Pick the appropriate direction path, or use primary if only one exists
+      // After last departures: all buses are on return ("kthim") trips
+      const goingForward = returnOnly ? false : (b % 2 === 0);
+
       const dirPath = rpaths.length > 1
         ? rpaths[goingForward ? 0 : 1]
         : primaryPath;
 
-      const progress = (b / count + Math.random() * 0.05) % 1;
+      // Late night buses: position them mid-to-late in their return trip
+      const progress = returnOnly
+        ? 0.3 + Math.random() * 0.5  // somewhere mid-route heading back
+        : (b / count + Math.random() * 0.05) % 1;
       const effectiveProgress = goingForward ? progress : 1 - progress;
 
       const pos = interpolateAlongPath(dirPath.points, dirPath.segmentDistances, dirPath.totalDistance, effectiveProgress);
@@ -438,7 +442,7 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
         next_stop_id: nextStop?.stopId || "",
         eta_minutes: Math.round(eta),
         status: Math.random() < 0.1 ? "at_stop" : "in_transit",
-        passengers: Math.floor(Math.random() * 50) + 5,
+        passengers: returnOnly ? Math.floor(Math.random() * 15) + 2 : Math.floor(Math.random() * 50) + 5,
         direction_id: dirPath.directionId,
         moving_forward: goingForward,
       });
