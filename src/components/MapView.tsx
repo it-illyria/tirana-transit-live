@@ -5,6 +5,7 @@ import { Locate, Maximize, Minimize } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
+import { predictArrivals, type ArrivalPrediction } from "@/lib/arrival-predictions";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -122,18 +123,51 @@ function CenterOnBus() {
 
 const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number }; data: any }) => {
   const { t } = useI18n();
+  const { buses } = useGTFS();
   const [fav, setFav] = useState(isFavorite(stop.stop_id));
+
+  const predictions = useMemo(() => {
+    if (!data || !buses.length) return [];
+    return predictArrivals(data, buses, stop.stop_id, 4);
+  }, [data, buses, stop.stop_id]);
 
   const departures = useMemo(() => {
     if (!data) return [];
     return getUpcomingDepartures(data, stop.stop_id, 3);
   }, [data, stop.stop_id]);
 
+  const statusColor = (status: ArrivalPrediction["status"]) => {
+    switch (status) {
+      case "on_time": return "#22c55e";
+      case "slightly_delayed": return "#eab308";
+      case "delayed": return "#f97316";
+      case "heavily_delayed": return "#ef4444";
+    }
+  };
+
+  const statusLabel = (status: ArrivalPrediction["status"]) => {
+    switch (status) {
+      case "on_time": return "On Time";
+      case "slightly_delayed": return "Slight Delay";
+      case "delayed": return "Delayed";
+      case "heavily_delayed": return "Heavy Delay";
+    }
+  };
+
+  const congestionColor = (level: ArrivalPrediction["congestionLevel"]) => {
+    switch (level) {
+      case "low": return "#22c55e";
+      case "moderate": return "#eab308";
+      case "heavy": return "#f97316";
+      case "severe": return "#ef4444";
+    }
+  };
+
   return (
     <Marker position={[stop.stop_lat, stop.stop_lon]} icon={stopIcon}>
       <Popup>
-        <div style={{ minWidth: 180 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ minWidth: 220, maxWidth: 280 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>{stop.stop_name}</strong>
             <button
               onClick={() => { toggleFavorite(stop.stop_id); setFav(!fav); }}
@@ -143,7 +177,71 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
               {fav ? "★" : "☆"}
             </button>
           </div>
-          <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>{t.departures}:</div>
+
+          {/* Arrival Predictions */}
+          {predictions.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+                🚌 Predicted Arrivals
+              </div>
+              {predictions.map((p, i) => (
+                <div key={i} style={{ 
+                  padding: "4px 0", 
+                  borderBottom: i < predictions.length - 1 ? "1px solid #f0f0f0" : "none",
+                  fontSize: 12,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{
+                      background: p.routeColor,
+                      color: "white",
+                      padding: "1px 6px",
+                      borderRadius: 4,
+                      fontWeight: 700,
+                      fontSize: 11,
+                      minWidth: 28,
+                      textAlign: "center",
+                    }}>{p.routeName}</span>
+                    <span style={{ fontWeight: 700, color: "#333" }}>
+                      {p.predictedMinutes} min
+                    </span>
+                    <span style={{
+                      fontSize: 9,
+                      padding: "1px 4px",
+                      borderRadius: 3,
+                      background: statusColor(p.status),
+                      color: "white",
+                      fontWeight: 600,
+                    }}>
+                      {statusLabel(p.status)}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 10, color: "#888" }}>
+                    <span>{p.stopsAway} stops away</span>
+                    <span>·</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: "50%",
+                        background: congestionColor(p.congestionLevel),
+                        display: "inline-block",
+                      }} />
+                      Traffic: {p.congestionLevel}
+                    </span>
+                    {p.delayMinutes > 0 && (
+                      <>
+                        <span>·</span>
+                        <span style={{ color: "#ef4444" }}>+{p.delayMinutes}m</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Schedule-based departures */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+            📅 {t.scheduled}
+          </div>
           {departures.length > 0 ? (
             departures.map((d, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontSize: 12 }}>

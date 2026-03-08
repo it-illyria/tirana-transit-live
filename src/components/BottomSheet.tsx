@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
-import { Search, ChevronUp, MapPin, Bus, Star, Clock } from "lucide-react";
+import { Search, ChevronUp, MapPin, Bus, Star, Clock, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites } from "@/lib/favorites";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
+import { predictArrivals } from "@/lib/arrival-predictions";
 
 type Tab = "routes" | "buses" | "favorites";
 
@@ -197,7 +198,12 @@ const BottomSheet = () => {
 
 function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
   const { t } = useI18n();
-  const { data } = useGTFS();
+  const { data, buses } = useGTFS();
+
+  const predictions = useMemo(() => {
+    if (!data || !buses.length) return [];
+    return predictArrivals(data, buses, stop.stop_id, 3);
+  }, [data, buses, stop.stop_id]);
 
   const departures = useMemo(() => {
     if (!data) return [];
@@ -209,6 +215,46 @@ function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
       <div className="flex items-center gap-2 mb-2">
         <MapPin className="w-3.5 h-3.5 text-primary" />
         <span className="text-sm font-semibold text-foreground">{stop.stop_name}</span>
+      </div>
+
+      {/* Real-time predictions */}
+      {predictions.length > 0 && (
+        <div className="mb-2">
+          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            🚌 Live Arrivals
+          </div>
+          {predictions.map((p, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+              <span
+                className="px-1.5 py-0.5 rounded font-semibold"
+                style={{ backgroundColor: p.routeColor, color: "white", fontSize: 10 }}
+              >
+                {p.routeName}
+              </span>
+              <span className="font-bold text-foreground">{p.predictedMinutes}m</span>
+              <span className={`px-1 py-0.5 rounded text-[9px] font-semibold text-white ${
+                p.status === "on_time" ? "bg-green-500" :
+                p.status === "slightly_delayed" ? "bg-yellow-500" :
+                p.status === "delayed" ? "bg-orange-500" : "bg-red-500"
+              }`}>
+                {p.status === "on_time" ? "On Time" :
+                 p.status === "slightly_delayed" ? "+Slight" :
+                 p.status === "delayed" ? `+${p.delayMinutes}m` : `+${p.delayMinutes}m`}
+              </span>
+              {p.congestionLevel !== "low" && (
+                <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  {p.congestionLevel}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Scheduled departures */}
+      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+        📅 {t.scheduled}
       </div>
       {departures.length > 0 ? (
         departures.map((d, i) => (
