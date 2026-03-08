@@ -671,7 +671,7 @@ const MapView = () => {
               ))}
             </div>
             <div className="overflow-y-auto space-y-1 flex-1">
-              {routeLegend.map((r) => {
+              {routeList.map((r) => {
                 const hidden = hiddenRoutes.has(r.id);
                 return (
                   <button
@@ -690,7 +690,7 @@ const MapView = () => {
                       style={{ backgroundColor: r.color }}
                     />
                     <span className="text-[11px] font-semibold text-foreground flex-1 truncate">{r.name}</span>
-                    <span className="text-[9px] text-muted-foreground">{r.busCount}</span>
+                    <span className="text-[9px] text-muted-foreground">{busCountMap.get(r.id) || 0}</span>
                   </button>
                 );
               })}
