@@ -5,7 +5,7 @@ import type { GTFSData, SimulatedBus } from "./gtfs-types";
  * Simulates congestion zones and time-based traffic patterns.
  */
 
-interface CongestionZone {
+export interface CongestionZone {
   name: string;
   lat: number;
   lon: number;
