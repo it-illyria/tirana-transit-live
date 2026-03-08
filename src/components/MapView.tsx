@@ -748,7 +748,7 @@ const MapView = () => {
       </MapContainer>
 
       {/* Simulation disclaimer banner */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border shadow-sm">
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border shadow-sm">
         <p className="text-[10px] text-muted-foreground text-center leading-tight">
           ⚠️ Pozicionet e autobusëve janë të simuluara · Bus positions are simulated
         </p>
