@@ -292,6 +292,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
 StopMarker.displayName = "StopMarker";
 
 const MapView = () => {
+  const { t } = useI18n();
   const { data, buses, selectedRouteId } = useGTFS();
   const { theme } = useTheme();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
