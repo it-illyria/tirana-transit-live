@@ -871,7 +871,7 @@ Deno.serve(async (req) => {
 
       // Stale – update positions
       const updatedBuses = updateBuses(state);
-      const newState: BusState = { buses: updatedBuses, paths: state.paths, lastUpdate: Date.now() };
+      const newState: BusState = { buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(newState), 300);
 
       return new Response(JSON.stringify({
