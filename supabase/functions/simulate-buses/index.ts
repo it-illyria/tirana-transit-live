@@ -457,10 +457,11 @@ function updateBuses(state: BusState): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
   if (fleetFraction <= 0) return [];
 
+  const returnOnly = isReturnTripsOnly();
+
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
-  // Also group by routeId for direction switching
   const routePaths = new Map<string, RoutePath[]>();
   for (const p of state.paths) {
     const arr = routePaths.get(p.routeId) || [];
@@ -471,14 +472,24 @@ function updateBuses(state: BusState): SimulatedBus[] {
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  // During ramp-down, progressively remove buses
   const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
   let activeBuses = state.buses;
 
+  // During ramp-down: remove parked buses (speed=0, at terminus) first
   if (fleetFraction < 1 && activeBuses.length > targetCount) {
-    const midRoute = activeBuses.filter(b => b.progress > 0.05 && b.progress < 0.95);
-    const atEnds = activeBuses.filter(b => b.progress <= 0.05 || b.progress >= 0.95);
-    activeBuses = [...midRoute, ...atEnds.slice(0, Math.max(0, targetCount - midRoute.length))];
+    const parked = activeBuses.filter(b => b.speed === 0 && (b.progress <= 0.01 || b.progress >= 0.99));
+    const moving = activeBuses.filter(b => !(b.speed === 0 && (b.progress <= 0.01 || b.progress >= 0.99)));
+    activeBuses = [...moving, ...parked.slice(0, Math.max(0, targetCount - moving.length))];
+  }
+
+  // In return-only mode, force any forward-moving buses to start returning
+  if (returnOnly) {
+    activeBuses = activeBuses.map(b => {
+      if (b.moving_forward && b.progress > 0.5) {
+        return { ...b, moving_forward: false };
+      }
+      return b;
+    });
   }
 
   return activeBuses.map((bus) => {
