@@ -13,7 +13,7 @@ interface Props {
 
 const FavoritesPanel = ({ open, onClose }: Props) => {
   const { t } = useI18n();
-  const { data, buses } = useGTFS();
+  const { data, buses, setFocusStopId } = useGTFS();
   const [favIds, setFavIds] = useState<string[]>([]);
 
   // Re-read favorites when panel opens or buses update (triggers re-render)
