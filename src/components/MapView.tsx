@@ -276,6 +276,7 @@ StopMarker.displayName = "StopMarker";
 
 const MapView = () => {
   const { data, buses, selectedRouteId } = useGTFS();
+  const { theme } = useTheme();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
   const [showCongestion, setShowCongestion] = useState(false);
