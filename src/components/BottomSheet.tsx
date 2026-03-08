@@ -153,7 +153,18 @@ const BottomSheet = () => {
                         className="w-full flex items-center gap-3 p-2 pl-8 rounded-lg hover:bg-accent transition-colors text-left"
                       >
                         <span className="text-xs text-muted-foreground">{bus.vehicle_id}</span>
-                        <span className="text-xs text-foreground">{Math.round(bus.speed)} km/h</span>
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                          bus.status === "at_stop" ? "bg-yellow-100 text-yellow-700" : 
+                          bus.status === "delayed" ? "bg-red-100 text-red-700" : 
+                          "bg-green-100 text-green-700"
+                        }`}>
+                          {bus.status === "at_stop" ? "At Stop" : bus.status === "delayed" ? "Delayed" : `${Math.round(bus.speed)} km/h`}
+                        </span>
+                        {bus.next_stop_name && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            → {bus.next_stop_name} {bus.eta_minutes > 0 && `(${bus.eta_minutes}m)`}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
