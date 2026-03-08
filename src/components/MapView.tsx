@@ -2,7 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, useM
 import RefreshStatusIndicator from "@/components/RefreshStatusIndicator";
 import WalkToStop from "@/components/WalkToStop";
 import L from "leaflet";
-import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, memo, useCallback, useRef } from "react";
 import { Locate, Maximize, Minimize, Layers, Filter } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
