@@ -10,7 +10,6 @@ function useTiranaClock() {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  // Format in Europe/Tirane timezone
   const formatted = now.toLocaleTimeString("en-GB", {
     timeZone: "Europe/Tirane",
     hour: "2-digit",
@@ -24,7 +23,16 @@ function useTiranaClock() {
     month: "short",
     year: "numeric",
   });
-  return { now, formatted, dateFormatted };
+  // Get Tirana hours & minutes for calculations
+  const tiranaHM = now.toLocaleTimeString("en-GB", {
+    timeZone: "Europe/Tirane",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const [h, m] = tiranaHM.split(":").map(Number);
+  const tiranaMinutes = h * 60 + m;
+  return { now, formatted, dateFormatted, tiranaMinutes };
 }
 
 /** Countdown hook — re-renders every second */
