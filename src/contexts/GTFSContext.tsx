@@ -60,6 +60,7 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
   });
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [selectedBusId, setSelectedBusId] = useState<string | null>(null);
+  const [focusStopId, setFocusStopId] = useState<string | null>(null);
   const pollInterval = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
