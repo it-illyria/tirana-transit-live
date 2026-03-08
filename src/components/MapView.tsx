@@ -585,7 +585,7 @@ const MapView = () => {
                   }}>{bus.status === "at_stop" ? t.atStop : bus.status === "delayed" ? t.delayed : t.inTransit}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#666" }}>
-                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h · <span style={{ color: bus.direction_id === "0" ? "#3b82f6" : "#a855f7", fontWeight: 600 }}>{bus.direction_id === "0" ? "Outbound" : "Return"}</span>
+                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h · <span style={{ color: bus.moving_forward ? "#3b82f6" : "#a855f7", fontWeight: 600 }}>{bus.moving_forward ? "Vajtje" : "Kthim"}</span>
                 </div>
                 {bus.next_stop_name && (
                   <div style={{ fontSize: 11, marginTop: 4 }}>
