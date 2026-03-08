@@ -103,6 +103,10 @@ export const translations = {
     toggleTraffic: "Toggle traffic",
     // Refresh indicator
     secondsAgo: "s ago",
+    // Nearest stop widget
+    nearestStop: "Nearest Stop",
+    metersAway: "m away",
+    noGps: "GPS not available",
   },
   sq: {
     appTitle: "UrbanTirana",
@@ -204,6 +208,10 @@ export const translations = {
     toggleTraffic: "Trafiku",
     // Refresh indicator
     secondsAgo: "s më parë",
+    // Nearest stop widget
+    nearestStop: "Stacioni më i afërt",
+    metersAway: "m larg",
+    noGps: "GPS nuk është i disponueshëm",
   },
 } as const;
 
