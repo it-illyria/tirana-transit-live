@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Bell, BellOff, X } from "lucide-react";
 import { getNotificationSettings, saveNotificationSettings, type NotificationSettings } from "@/lib/notification-settings";
+import { useI18n } from "@/lib/i18n";
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 const THRESHOLD_OPTIONS = [1, 2, 3, 5, 10];
 
 const NotificationSettingsPanel = ({ open, onClose }: Props) => {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<NotificationSettings>(getNotificationSettings);
   const [permStatus, setPermStatus] = useState<NotificationPermission>("default");
 
@@ -35,16 +37,13 @@ const NotificationSettingsPanel = ({ open, onClose }: Props) => {
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center">
-      {/* backdrop */}
       <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={onClose} />
 
-      {/* panel */}
       <div className="relative z-10 w-full max-w-sm mx-3 mb-3 sm:mb-0 bg-card rounded-2xl shadow-lg border border-border overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-        {/* header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <Bell className="w-5 h-5 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Notification Settings</h2>
+            <h2 className="text-base font-semibold text-foreground">{t.notifSettings}</h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
             <X className="w-4 h-4 text-muted-foreground" />
@@ -52,13 +51,10 @@ const NotificationSettingsPanel = ({ open, onClose }: Props) => {
         </div>
 
         <div className="px-5 py-4 space-y-5">
-          {/* Enable / disable */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Arrival alerts</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Notify when a bus nears a favorited stop
-              </p>
+              <p className="text-sm font-medium text-foreground">{t.arrivalAlerts}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t.arrivalAlertsDesc}</p>
             </div>
             <button
               onClick={() => update({ enabled: !settings.enabled })}
@@ -75,9 +71,8 @@ const NotificationSettingsPanel = ({ open, onClose }: Props) => {
             </button>
           </div>
 
-          {/* Threshold */}
           <div>
-            <p className="text-sm font-medium text-foreground mb-2">Alert threshold</p>
+            <p className="text-sm font-medium text-foreground mb-2">{t.alertThreshold}</p>
             <div className="flex gap-2 flex-wrap">
               {THRESHOLD_OPTIONS.map((min) => (
                 <button
@@ -94,32 +89,27 @@ const NotificationSettingsPanel = ({ open, onClose }: Props) => {
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
-              Get notified when a bus is within {settings.thresholdMinutes} minute{settings.thresholdMinutes !== 1 ? "s" : ""} of your stop
+              {t.alertThresholdDesc.replace("{min}", `${settings.thresholdMinutes} min`)}
             </p>
           </div>
 
-          {/* Browser permission status */}
           {permStatus !== "granted" && (
             <div className="bg-accent/50 rounded-xl px-4 py-3">
               <div className="flex items-start gap-2.5">
                 <BellOff className="w-4 h-4 text-accent-foreground mt-0.5 shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-accent-foreground">
-                    {permStatus === "denied"
-                      ? "Notifications blocked"
-                      : "Permission required"}
+                    {permStatus === "denied" ? t.notifBlocked : t.notifPermRequired}
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {permStatus === "denied"
-                      ? "Please enable notifications in your browser settings."
-                      : "Allow browser notifications to receive alerts."}
+                    {permStatus === "denied" ? t.notifBlockedDesc : t.notifPermRequiredDesc}
                   </p>
                   {permStatus === "default" && (
                     <button
                       onClick={requestPermission}
                       className="mt-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:opacity-90 transition-opacity"
                     >
-                      Allow notifications
+                      {t.allowNotifications}
                     </button>
                   )}
                 </div>
