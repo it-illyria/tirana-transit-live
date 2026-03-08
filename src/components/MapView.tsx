@@ -300,6 +300,7 @@ const MapView = () => {
   const [showCongestion, setShowCongestion] = useState(false);
   const [showRouteLegend, setShowRouteLegend] = useState(false);
   const [hiddenRoutes, setHiddenRoutes] = useState<Set<string>>(new Set());
+  const [directionFilter, setDirectionFilter] = useState<"all" | "0" | "1">("all");
 
   // Route legend data
   const routeLegend = useMemo(() => {
@@ -417,11 +418,14 @@ const MapView = () => {
     if (hiddenRoutes.size > 0) {
       filtered = filtered.filter((b) => !hiddenRoutes.has(b.route_id));
     }
+    if (directionFilter !== "all") {
+      filtered = filtered.filter((b) => b.direction_id === directionFilter);
+    }
     if (!bounds) return filtered;
     return filtered.filter((b) =>
       bounds.contains([b.latitude, b.longitude])
     );
-  }, [buses, bounds, hiddenRoutes]);
+  }, [buses, bounds, hiddenRoutes, directionFilter]);
 
   // Route polylines for selected route (both directions)
   const routePolylines = useMemo(() => {
@@ -550,7 +554,7 @@ const MapView = () => {
                   }}>{bus.status === "at_stop" ? t.atStop : bus.status === "delayed" ? t.delayed : t.inTransit}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#666" }}>
-                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h
+                  {bus.vehicle_id} · {Math.round(bus.speed)} km/h · <span style={{ color: bus.direction_id === "0" ? "#3b82f6" : "#a855f7", fontWeight: 600 }}>{bus.direction_id === "0" ? "Outbound" : "Return"}</span>
                 </div>
                 {bus.next_stop_name && (
                   <div style={{ fontSize: 11, marginTop: 4 }}>
@@ -618,6 +622,22 @@ const MapView = () => {
               >
                 {hiddenRoutes.size > 0 ? t.showAll : t.hideAll}
               </button>
+            </div>
+            {/* Direction filter */}
+            <div className="flex gap-1 mb-2">
+              {([["all", "All"], ["0", "Outbound"], ["1", "Return"]] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setDirectionFilter(val as "all" | "0" | "1")}
+                  className={`flex-1 text-[10px] font-semibold py-1 rounded-md transition-colors ${
+                    directionFilter === val
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
             <div className="overflow-y-auto space-y-1 flex-1">
               {routeLegend.map((r) => {
