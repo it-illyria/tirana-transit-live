@@ -119,9 +119,48 @@ function interpolateAlongPath(
   return { lat: last[0], lon: last[1], heading: bearing(prev[0], prev[1], last[0], last[1]) };
 }
 
-// ─── Speed ───────────────────────────────────────────────────────────────────
+// ─── Speed & Operating Hours ─────────────────────────────────────────────────
 
 const BASE_SPEED_KMH = 18;
+
+// Tirana buses operate ~5:00 – 23:00
+const SERVICE_START_HOUR = 5;   // first buses depart at 5:00
+const SERVICE_END_HOUR = 23;    // last departures at 23:00
+const RAMP_UP_MINUTES = 60;     // takes 60 min to reach full service (5:00-6:00)
+const RAMP_DOWN_MINUTES = 30;   // last buses finish routes by ~23:30
+
+/**
+ * Returns the fraction of fleet that should be active (0.0 – 1.0).
+ * Handles gradual morning startup and evening wind-down.
+ */
+function getFleetFraction(): number {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const totalMin = hour * 60 + minute;
+
+  const startMin = SERVICE_START_HOUR * 60;
+  const endMin = SERVICE_END_HOUR * 60;
+
+  // Dead of night: no buses
+  if (totalMin < startMin || totalMin > endMin + RAMP_DOWN_MINUTES) return 0;
+
+  // Morning ramp-up: gradual increase
+  if (totalMin < startMin + RAMP_UP_MINUTES) {
+    return (totalMin - startMin) / RAMP_UP_MINUTES;
+  }
+
+  // Evening ramp-down: gradual decrease
+  if (totalMin > endMin) {
+    return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
+  }
+
+  // Weekend: slightly reduced service (~80%)
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return 0.8;
+
+  return 1.0;
+}
 
 function getSpeedMultiplier(): number {
   const hour = new Date().getHours();
@@ -294,13 +333,17 @@ function buildRoutePaths(data: any): RoutePath[] {
   return paths;
 }
 
-// ─── Generate initial buses ──────────────────────────────────────────────────
+// ─── Generate initial buses (respects operating hours) ───────────────────────
 
 function generateBuses(paths: RoutePath[]): SimulatedBus[] {
+  const fleetFraction = getFleetFraction();
+  if (fleetFraction <= 0) return []; // No service right now
+
   const buses: SimulatedBus[] = [];
   let idx = 0;
   for (const path of paths) {
-    const count = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+    const maxCount = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+    const count = Math.max(1, Math.round(maxCount * fleetFraction));
     for (let b = 0; b < count; b++) {
       const progress = (b / count + Math.random() * 0.05) % 1;
       const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, progress);
@@ -334,16 +377,33 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   return buses;
 }
 
-// ─── Update bus positions ────────────────────────────────────────────────────
+// ─── Update bus positions (with operating hours awareness) ───────────────────
 
 function updateBuses(state: BusState): SimulatedBus[] {
+  const fleetFraction = getFleetFraction();
+
+  // If service has ended, return empty
+  if (fleetFraction <= 0) return [];
+
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  return state.buses.map((bus) => {
+  // During ramp-down, progressively remove buses that reach terminus
+  const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
+  let activeBuses = state.buses;
+
+  // If we need fewer buses (evening), only keep a subset
+  if (fleetFraction < 1 && activeBuses.length > targetCount) {
+    // Keep buses that are mid-route, park ones at terminus
+    const midRoute = activeBuses.filter(b => b.progress > 0.05 && b.progress < 0.95);
+    const atEnds = activeBuses.filter(b => b.progress <= 0.05 || b.progress >= 0.95);
+    activeBuses = [...midRoute, ...atEnds.slice(0, Math.max(0, targetCount - midRoute.length))];
+  }
+
+  return activeBuses.map((bus) => {
     let directionId = bus.direction_id;
     const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
@@ -357,17 +417,21 @@ function updateBuses(state: BusState): SimulatedBus[] {
     let newStatus: SimulatedBus["status"] = "in_transit";
 
     if (newProgress >= 0.995) {
+      // During ramp-down, buses that reach terminus are "parked" (removed next cycle)
+      if (fleetFraction < 0.5 && !wasAtStop) {
+        newProgress = 1.0;
+        newStatus = "at_stop";
+        // This bus won't restart — it'll be filtered out next update
+        return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      }
+
       if (!wasAtStop) {
-        // Pause at terminus
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        // Switch to opposite direction for the return trip
         const oppositeDir = directionId === "0" ? "1" : "0";
         const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
-        if (oppositePath) {
-          directionId = oppositeDir;
-        }
+        if (oppositePath) directionId = oppositeDir;
         newProgress = 0.0;
         newStatus = "in_transit";
       }
@@ -405,6 +469,64 @@ function updateBuses(state: BusState): SimulatedBus[] {
   });
 }
 
+// ─── GTFS-RT probe ──────────────────────────────────────────────────────────
+// Tirana has GTFS-RT integrated with Google Maps via ATD/GIZ, but the feed
+// is not publicly accessible. We probe known endpoint patterns and fall back
+// to simulation if unavailable.
+
+const GTFS_RT_ENDPOINTS = [
+  "https://pt.tirana.al/gtfs-rt/vehicle-positions",
+  "https://pt.tirana.al/gtfs-rt/vehiclepositions.pb",
+  "https://pt.tirana.al/api/realtime/vehicle-positions",
+];
+
+async function tryGtfsRt(): Promise<SimulatedBus[] | null> {
+  for (const url of GTFS_RT_ENDPOINTS) {
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(3000),
+        headers: { "Accept": "application/x-protobuf, application/json" },
+      });
+      if (!res.ok) continue;
+
+      // If we get JSON back, try to parse vehicle positions
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("json")) {
+        const data = await res.json();
+        if (data.entity && Array.isArray(data.entity)) {
+          console.log(`GTFS-RT feed found at ${url} with ${data.entity.length} vehicles`);
+          return data.entity
+            .filter((e: any) => e.vehicle?.position)
+            .map((e: any, i: number) => ({
+              vehicle_id: e.vehicle?.vehicle?.id || `RT-${i}`,
+              route_id: e.vehicle?.trip?.routeId || "",
+              trip_id: e.vehicle?.trip?.tripId || "",
+              latitude: e.vehicle.position.latitude,
+              longitude: e.vehicle.position.longitude,
+              heading: e.vehicle.position.bearing || 0,
+              speed: (e.vehicle.position.speed || 0) * 3.6,
+              timestamp: Date.now(),
+              route_color: "#0066CC",
+              route_name: e.vehicle?.trip?.routeId || "?",
+              progress: 0.5,
+              next_stop_name: "",
+              next_stop_id: "",
+              eta_minutes: 0,
+              status: "in_transit" as const,
+              passengers: 0,
+              direction_id: e.vehicle?.trip?.directionId?.toString() || "0",
+              moving_forward: true,
+            }));
+        }
+      }
+      // Protobuf parsing would need a library — skip for now
+    } catch {
+      // Timeout or network error — try next endpoint
+    }
+  }
+  return null;
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -422,6 +544,39 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Check operating hours first
+    const fleetFraction = getFleetFraction();
+    if (fleetFraction <= 0) {
+      // Service is not running — return empty with status info
+      const hour = new Date().getHours();
+      const nextService = hour >= SERVICE_END_HOUR
+        ? `${SERVICE_START_HOUR}:00 nesër` // tomorrow morning
+        : `${SERVICE_START_HOUR}:00`;
+      return new Response(JSON.stringify({
+        buses: [],
+        cached: false,
+        serviceStatus: "night",
+        message: `Shërbimi i autobusëve nuk është aktiv. Rifillon në ${nextService}.`,
+        nextServiceStart: nextService,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Try GTFS-RT first (real-time data from Tirana's system)
+    const rtBuses = await tryGtfsRt();
+    if (rtBuses && rtBuses.length > 0) {
+      return new Response(JSON.stringify({
+        buses: rtBuses,
+        cached: false,
+        source: "gtfs-rt",
+        serviceStatus: "active",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Fallback: simulation
     // Try Redis cache first
     const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state");
     if (cached) {
@@ -429,8 +584,14 @@ Deno.serve(async (req) => {
       const age = Date.now() - state.lastUpdate;
 
       if (age < 8000) {
-        // Fresh enough – return as-is
-        return new Response(JSON.stringify({ buses: state.buses, cached: true, age }), {
+        return new Response(JSON.stringify({
+          buses: state.buses,
+          cached: true,
+          age,
+          source: "simulation",
+          serviceStatus: "active",
+          fleetFraction,
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -440,7 +601,14 @@ Deno.serve(async (req) => {
       const newState: BusState = { buses: updatedBuses, paths: state.paths, lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(newState), 300);
 
-      return new Response(JSON.stringify({ buses: updatedBuses, cached: false, age }), {
+      return new Response(JSON.stringify({
+        buses: updatedBuses,
+        cached: false,
+        age,
+        source: "simulation",
+        serviceStatus: "active",
+        fleetFraction,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -456,11 +624,17 @@ Deno.serve(async (req) => {
     const paths = buildRoutePaths(gtfs);
     const buses = generateBuses(paths);
 
-    // Store paths without the heavy points data for subsequent updates
     const state: BusState = { buses, paths, lastUpdate: Date.now() };
     await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(state), 300);
 
-    return new Response(JSON.stringify({ buses, cached: false, initialized: true }), {
+    return new Response(JSON.stringify({
+      buses,
+      cached: false,
+      initialized: true,
+      source: "simulation",
+      serviceStatus: "active",
+      fleetFraction,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
