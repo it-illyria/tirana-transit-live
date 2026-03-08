@@ -418,11 +418,14 @@ const MapView = () => {
     if (hiddenRoutes.size > 0) {
       filtered = filtered.filter((b) => !hiddenRoutes.has(b.route_id));
     }
+    if (directionFilter !== "all") {
+      filtered = filtered.filter((b) => b.direction_id === directionFilter);
+    }
     if (!bounds) return filtered;
     return filtered.filter((b) =>
       bounds.contains([b.latitude, b.longitude])
     );
-  }, [buses, bounds, hiddenRoutes]);
+  }, [buses, bounds, hiddenRoutes, directionFilter]);
 
   // Route polylines for selected route (both directions)
   const routePolylines = useMemo(() => {
