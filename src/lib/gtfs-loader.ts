@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import type { GTFSData, GTFSRoute, GTFSStop, GTFSTrip, GTFSStopTime, GTFSShape } from "./gtfs-types";
 
 const GTFS_URL = "https://transitous.org/feeds/municipality-of-tirana~gtfs.zip";
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+const CORS_PROXY = "https://corsproxy.io/?url=";
 const CACHE_KEY = "tirana_gtfs_data";
 const CACHE_TS_KEY = "tirana_gtfs_timestamp";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours

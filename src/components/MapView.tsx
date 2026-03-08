@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { useState, useEffect, useMemo, memo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
 import { Locate, Maximize, Minimize } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
@@ -51,14 +51,17 @@ function createBusIcon(color: string, heading: number) {
 
 // Track map viewport
 function ViewportTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLngBounds) => void }) {
+  const onBoundsChangeRef = React.useRef(onBoundsChange);
+  onBoundsChangeRef.current = onBoundsChange;
+
   const map = useMapEvents({
-    moveend: () => onBoundsChange(map.getBounds()),
-    zoomend: () => onBoundsChange(map.getBounds()),
+    moveend: () => onBoundsChangeRef.current(map.getBounds()),
+    zoomend: () => onBoundsChangeRef.current(map.getBounds()),
   });
 
   useEffect(() => {
-    onBoundsChange(map.getBounds());
-  }, [map, onBoundsChange]);
+    onBoundsChangeRef.current(map.getBounds());
+  }, [map]);
 
   return null;
 }
