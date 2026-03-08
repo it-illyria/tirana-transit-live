@@ -851,7 +851,7 @@ Deno.serve(async (req) => {
 
     // Fallback: simulation
     // Try Redis cache first
-    const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state");
+    const cached = await redisGet(REDIS_URL, REDIS_TOKEN, "bus_state_v2");
     if (cached) {
       const state: BusState = JSON.parse(cached);
       const age = Date.now() - state.lastUpdate;
