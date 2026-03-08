@@ -36,7 +36,7 @@ export async function loadGTFSData(
   }
 
   onProgress?.("Downloading GTFS feed...");
-  const response = await fetch(CORS_PROXY + encodeURIComponent(GTFS_URL));
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-gtfs`);
   if (!response.ok) throw new Error(`Failed to fetch GTFS: ${response.status}`);
 
   const blob = await response.blob();
