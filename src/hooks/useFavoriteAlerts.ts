@@ -62,13 +62,13 @@ export function useFavoriteAlerts() {
         // Browser push notification (shown when tab is in background)
         if (permissionRef.current === "granted" && document.hidden) {
           try {
-            new Notification(title, {
+            const options: NotificationOptions & { vibrate?: number[] } = {
               body,
               icon: "/pwa-icon-192.png",
               tag: key,
               badge: "/pwa-icon-192.png",
-              vibrate: [200, 100, 200],
-            });
+            };
+            new Notification(title, options);
           } catch {
             // Notification API may not be available in all contexts
           }
