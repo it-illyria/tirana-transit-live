@@ -255,6 +255,7 @@ export function generateSimulatedBuses(data: GTFSData): SimulatedBus[] {
         status: Math.random() < 0.1 ? "at_stop" : "in_transit",
         passengers: Math.floor(Math.random() * 50) + 5,
         direction_id: path.directionId,
+        moving_forward: true,
       });
     }
   }
