@@ -288,13 +288,16 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
-    // When bus reaches the end of the route, hold at terminus then restart
-    if (newProgress >= 0.98) {
+    // When bus reaches the end, pause at terminus then loop back to start
+    // On round-trip routes the last point ≈ first point, so 1.0 → 0.0 is seamless
+    if (newProgress >= 0.995) {
       if (!wasAtStop) {
-        newProgress = 0.99;
+        // First arrival at terminus — hold here
+        newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        newProgress = 0.01;
+        // Was already paused — restart from beginning
+        newProgress = 0.0;
         newStatus = "in_transit";
       }
     } else {
