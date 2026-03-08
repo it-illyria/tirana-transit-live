@@ -299,11 +299,25 @@ const RouteDetailView = () => {
             {routeStops.map((stop, idx) => {
               const predictions = stopPredictions.get(stop.stop_id) || [];
               const nearbyBuses = busNearStop.get(stop.stop_id) || [];
-              const isFirst = idx === 0;
-              const isLast = idx === routeStops.length - 1;
+              const prevDir = idx > 0 ? routeStops[idx - 1].direction : null;
+              const isDirectionChange = idx === 0 || stop.direction !== prevDir;
+              const dirStops = routeStops.filter((s) => s.direction === stop.direction);
+              const isFirst = dirStops[0] === stop;
+              const isLast = dirStops[dirStops.length - 1] === stop;
 
               return (
-                <div key={`${stop.stop_id}-${idx}`} className="relative flex gap-3 pb-1">
+                <div key={`${stop.stop_id}-${idx}`}>
+                  {/* Direction header */}
+                  {isDirectionChange && (
+                    <div className="flex items-center gap-2 py-2 mb-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary px-2">
+                        {stop.direction === "0" ? "→" : "←"} {stop.directionLabel}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <div className="relative flex gap-3 pb-1">
                   {/* Timeline line + dot */}
                   <div className="flex flex-col items-center shrink-0 w-6">
                     <div
