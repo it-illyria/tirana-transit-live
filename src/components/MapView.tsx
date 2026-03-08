@@ -501,30 +501,19 @@ const MapView = () => {
           </Marker>
         ))}
 
-        {/* Congestion overlay */}
-        {congestionOverlay.map((zone) => (
-          <Circle
-            key={zone.name}
-            center={[zone.lat, zone.lon]}
-            radius={zone.radius * 1000}
+        {/* Traffic congestion on routes */}
+        {trafficRouteSegments.map((seg, i) => (
+          <Polyline
+            key={`traffic-${i}`}
+            positions={seg.positions}
             pathOptions={{
-              color: zone.color,
-              fillColor: zone.color,
-              fillOpacity: zone.opacity,
-              weight: 2,
-              opacity: 0.6,
+              color: seg.color,
+              weight: seg.weight,
+              opacity: 0.85,
+              lineCap: "round",
+              lineJoin: "round",
             }}
-          >
-            <Tooltip direction="center" permanent={zoom >= 14} className="congestion-tooltip">
-              <div style={{ textAlign: "center", fontSize: 10, fontWeight: 600 }}>
-                <div>{zone.name}</div>
-              <div style={{ color: zone.color }}>
-                  {zone.level === "low" ? "🟢" : zone.level === "moderate" ? "🟡" : zone.level === "heavy" ? "🔴" : "⚫"}{" "}
-                  {zone.level.charAt(0).toUpperCase() + zone.level.slice(1)}
-                </div>
-              </div>
-            </Tooltip>
-          </Circle>
+          />
         ))}
 
         <CenterOnBus />
