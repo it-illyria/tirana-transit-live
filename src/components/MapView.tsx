@@ -476,8 +476,12 @@ const MapView = () => {
         className="w-full h-full"
       >
         <TileLayer
+          key={theme}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | GTFS: Municipality of Tirana (CC-BY-SA-4.0)'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={theme === "dark"
+            ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
         />
 
         <ViewportTracker onBoundsChange={(b) => {
