@@ -4,7 +4,7 @@ import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { findTrips } from "@/lib/trip-planner";
 import type { GTFSStop, TripPlan } from "@/lib/gtfs-types";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   open: boolean;

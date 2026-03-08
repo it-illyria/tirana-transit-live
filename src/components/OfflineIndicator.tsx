@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { WifiOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const OfflineIndicator = () => {
   const { t } = useI18n();

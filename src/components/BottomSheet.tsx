@@ -4,7 +4,7 @@ import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites } from "@/lib/favorites";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Tab = "routes" | "buses" | "favorites";
 
