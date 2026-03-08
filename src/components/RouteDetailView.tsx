@@ -94,6 +94,32 @@ const RouteDetailView = () => {
     return map;
   }, [routeBuses, routeStops]);
 
+  // Compute inter-stop travel times (congestion-adjusted)
+  const interStopMinutes = useMemo(() => {
+    if (routeStops.length < 2) return [];
+    const BASE_SPEED = 18; // km/h
+    const R = 6371;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+
+    return routeStops.slice(0, -1).map((s, i) => {
+      const next = routeStops[i + 1];
+      // Haversine
+      const dLat = toRad(next.stop_lat - s.stop_lat);
+      const dLon = toRad(next.stop_lon - s.stop_lon);
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(s.stop_lat)) * Math.cos(toRad(next.stop_lat)) * Math.sin(dLon / 2) ** 2;
+      const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      // Congestion at midpoint
+      const midLat = (s.stop_lat + next.stop_lat) / 2;
+      const midLon = (s.stop_lon + next.stop_lon) / 2;
+      const congestion = getCongestionFactor(midLat, midLon);
+      const effectiveSpeed = BASE_SPEED / congestion;
+      const minutes = (distKm / effectiveSpeed) * 60 + 0.5; // +30s dwell
+      return Math.max(1, Math.round(minutes));
+    });
+  }, [routeStops]);
+
   if (!selectedRouteId || !route) return null;
 
   const statusColor = (status: ArrivalPrediction["status"]) => {
