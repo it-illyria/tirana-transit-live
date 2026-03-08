@@ -72,8 +72,8 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
                 stop={stop}
                 onRemove={() => handleRemove(stop.stop_id)}
                 onLocate={() => {
-                  const { setFocusStopId } = useGTFS;
-                  // handled via prop
+                  setFocusStopId(stop.stop_id);
+                  onClose();
                 }}
               />
             ))
