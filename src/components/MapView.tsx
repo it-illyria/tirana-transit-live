@@ -164,22 +164,21 @@ function CenterOnStop() {
   return null;
 }
 
-const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number }; data: any }) => {
+// Popup content — only mounts when popup is open, subscribes to buses context here
+function StopPopupContent({ stop, data }: { stop: { stop_id: string; stop_name: string }; data: any }) {
   const { t } = useI18n();
   const { buses } = useGTFS();
   const [fav, setFav] = useState(isFavorite(stop.stop_id));
-  const [isOpen, setIsOpen] = useState(false);
 
-  // Only compute predictions when popup is open
   const predictions = useMemo(() => {
-    if (!isOpen || !data || !buses.length) return [];
+    if (!data || !buses.length) return [];
     return predictArrivals(data, buses, stop.stop_id, 4);
-  }, [isOpen, data, buses, stop.stop_id]);
+  }, [data, buses, stop.stop_id]);
 
   const departures = useMemo(() => {
-    if (!isOpen || !data) return [];
+    if (!data) return [];
     return getUpcomingDepartures(data, stop.stop_id, 3);
-  }, [isOpen, data, stop.stop_id]);
+  }, [data, stop.stop_id]);
 
   const statusColor = (status: ArrivalPrediction["status"]) => {
     switch (status) {
@@ -189,7 +188,6 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
       case "heavily_delayed": return "#ef4444";
     }
   };
-
   const statusLabel = (status: ArrivalPrediction["status"]) => {
     switch (status) {
       case "on_time": return t.onTime;
@@ -198,7 +196,6 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
       case "heavily_delayed": return t.heavyDelay;
     }
   };
-
   const congestionColor = (level: ArrivalPrediction["congestionLevel"]) => {
     switch (level) {
       case "low": return "#22c55e";
@@ -207,6 +204,65 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
       case "severe": return "#ef4444";
     }
   };
+
+  return (
+    <div style={{ minWidth: 220, maxWidth: 280 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <strong style={{ fontSize: 13 }}>{stop.stop_name}</strong>
+        <button
+          onClick={() => { toggleFavorite(stop.stop_id); setFav(!fav); }}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}
+          aria-label={fav ? t.removeFavorite : t.addFavorite}
+        >
+          {fav ? "★" : "☆"}
+        </button>
+      </div>
+      {predictions.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+            🚌 {t.predictedArrivals}
+          </div>
+          {predictions.map((p, i) => (
+            <div key={i} style={{ padding: "4px 0", borderBottom: i < predictions.length - 1 ? "1px solid #f0f0f0" : "none", fontSize: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ background: p.routeColor, color: "white", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 11, minWidth: 28, textAlign: "center" }}>{p.routeName}</span>
+                <span style={{ fontWeight: 700, color: "#333" }}>{p.predictedMinutes} {t.minutes}</span>
+                <span style={{ fontSize: 9, padding: "1px 4px", borderRadius: 3, background: statusColor(p.status), color: "white", fontWeight: 600 }}>{statusLabel(p.status)}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 10, color: "#888" }}>
+                <span>{p.stopsAway} {p.stopsAway !== 1 ? t.stopsAway : t.stopAway}</span>
+                <span>·</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: congestionColor(p.congestionLevel), display: "inline-block" }} />
+                  {t.traffic}: {p.congestionLevel}
+                </span>
+                {p.delayMinutes > 0 && (<><span>·</span><span style={{ color: "#ef4444" }}>+{p.delayMinutes}m</span></>)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
+        📅 {t.scheduled}
+      </div>
+      {departures.length > 0 ? (
+        departures.map((d, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontSize: 12 }}>
+            <span style={{ background: d.routeColor, color: "white", padding: "1px 6px", borderRadius: 4, fontWeight: 600, fontSize: 11 }}>{d.route}</span>
+            <span style={{ color: d.minutesAway < 5 ? "#22c55e" : d.minutesAway < 15 ? "#eab308" : "#ef4444", fontWeight: 600 }}>{d.minutesAway} {t.minutes}</span>
+            <span style={{ color: "#999", fontSize: 10 }}>{d.headsign}</span>
+          </div>
+        ))
+      ) : (
+        <div style={{ fontSize: 11, color: "#999" }}>{t.noDepartures}</div>
+      )}
+    </div>
+  );
+}
+
+// StopMarker — NO context subscription, so it won't re-render on bus polls
+const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: string; stop_lat: number; stop_lon: number }; data: any }) => {
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Marker
@@ -218,104 +274,11 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
       }}
     >
       <Popup>
-        <div style={{ minWidth: 220, maxWidth: 280 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <strong style={{ fontSize: 13 }}>{stop.stop_name}</strong>
-            <button
-              onClick={() => { toggleFavorite(stop.stop_id); setFav(!fav); }}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}
-              aria-label={fav ? t.removeFavorite : t.addFavorite}
-            >
-              {fav ? "★" : "☆"}
-            </button>
-          </div>
-
-          {/* Arrival Predictions */}
-          {predictions.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-                🚌 {t.predictedArrivals}
-              </div>
-              {predictions.map((p, i) => (
-                <div key={i} style={{ 
-                  padding: "4px 0", 
-                  borderBottom: i < predictions.length - 1 ? "1px solid #f0f0f0" : "none",
-                  fontSize: 12,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{
-                      background: p.routeColor,
-                      color: "white",
-                      padding: "1px 6px",
-                      borderRadius: 4,
-                      fontWeight: 700,
-                      fontSize: 11,
-                      minWidth: 28,
-                      textAlign: "center",
-                    }}>{p.routeName}</span>
-                    <span style={{ fontWeight: 700, color: "#333" }}>
-                      {p.predictedMinutes} {t.minutes}
-                    </span>
-                    <span style={{
-                      fontSize: 9,
-                      padding: "1px 4px",
-                      borderRadius: 3,
-                      background: statusColor(p.status),
-                      color: "white",
-                      fontWeight: 600,
-                    }}>
-                      {statusLabel(p.status)}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 10, color: "#888" }}>
-                    <span>{p.stopsAway} {p.stopsAway !== 1 ? t.stopsAway : t.stopAway}</span>
-                    <span>·</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: "50%",
-                        background: congestionColor(p.congestionLevel),
-                        display: "inline-block",
-                      }} />
-                      {t.traffic}: {p.congestionLevel}
-                    </span>
-                    {p.delayMinutes > 0 && (
-                      <>
-                        <span>·</span>
-                        <span style={{ color: "#ef4444" }}>+{p.delayMinutes}m</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Schedule-based departures */}
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-            📅 {t.scheduled}
-          </div>
-          {departures.length > 0 ? (
-            departures.map((d, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0", fontSize: 12 }}>
-                <span style={{
-                  background: d.routeColor,
-                  color: "white",
-                  padding: "1px 6px",
-                  borderRadius: 4,
-                  fontWeight: 600,
-                  fontSize: 11,
-                }}>{d.route}</span>
-                <span style={{
-                  color: d.minutesAway < 5 ? "#22c55e" : d.minutesAway < 15 ? "#eab308" : "#ef4444",
-                  fontWeight: 600,
-                }}>{d.minutesAway} {t.minutes}</span>
-                <span style={{ color: "#999", fontSize: 10 }}>{d.headsign}</span>
-              </div>
-            ))
-          ) : (
-            <div style={{ fontSize: 11, color: "#999" }}>{t.noDepartures}</div>
-          )}
-        </div>
+        {isOpen ? (
+          <StopPopupContent stop={stop} data={data} />
+        ) : (
+          <div style={{ minWidth: 120, fontSize: 12, color: "#999" }}>Loading...</div>
+        )}
       </Popup>
     </Marker>
   );
