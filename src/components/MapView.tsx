@@ -623,6 +623,22 @@ const MapView = () => {
                 {hiddenRoutes.size > 0 ? t.showAll : t.hideAll}
               </button>
             </div>
+            {/* Direction filter */}
+            <div className="flex gap-1 mb-2">
+              {([["all", "All"], ["0", "Outbound"], ["1", "Return"]] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setDirectionFilter(val as "all" | "0" | "1")}
+                  className={`flex-1 text-[10px] font-semibold py-1 rounded-md transition-colors ${
+                    directionFilter === val
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="overflow-y-auto space-y-1 flex-1">
               {routeLegend.map((r) => {
                 const hidden = hiddenRoutes.has(r.id);
