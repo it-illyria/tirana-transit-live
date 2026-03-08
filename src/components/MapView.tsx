@@ -553,7 +553,7 @@ const MapView = () => {
                 </div>
                 {bus.next_stop_name && (
                   <div style={{ fontSize: 11, marginTop: 4 }}>
-                    <span style={{ color: "#999" }}>Next: </span>
+                    <span style={{ color: "#999" }}>Tjetra: </span>
                     <strong>{bus.next_stop_name}</strong>
                     {bus.eta_minutes > 0 && (
                       <span style={{ color: "#22c55e", fontWeight: 600, marginLeft: 4 }}>
