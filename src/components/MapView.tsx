@@ -1,11 +1,11 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import React, { useState, useEffect, useMemo, memo, useCallback } from "react";
-import { Locate, Maximize, Minimize } from "lucide-react";
+import { Locate, Maximize, Minimize, Layers } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getUpcomingDepartures } from "@/lib/trip-planner";
-import { predictArrivals, type ArrivalPrediction } from "@/lib/arrival-predictions";
+import { predictArrivals, CONGESTION_ZONES, getCongestionLevel, getTimeMultiplier, type ArrivalPrediction } from "@/lib/arrival-predictions";
 import { isFavorite, toggleFavorite } from "@/lib/favorites";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -275,6 +275,20 @@ const MapView = () => {
   const { data, buses, selectedRouteId } = useGTFS();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
   const [zoom, setZoom] = useState(13);
+  const [showCongestion, setShowCongestion] = useState(false);
+
+  // Compute congestion levels for display
+  const congestionOverlay = useMemo(() => {
+    if (!showCongestion) return [];
+    const timeMult = getTimeMultiplier();
+    return CONGESTION_ZONES.map((zone) => {
+      const effectiveFactor = 1 + (zone.baseFactor - 1) * timeMult;
+      const level = getCongestionLevel(effectiveFactor);
+      const color = level === "low" ? "#22c55e" : level === "moderate" ? "#eab308" : level === "heavy" ? "#f97316" : "#ef4444";
+      const opacity = level === "low" ? 0.15 : level === "moderate" ? 0.2 : level === "heavy" ? 0.25 : 0.3;
+      return { ...zone, effectiveFactor, level, color, opacity };
+    });
+  }, [showCongestion]);
 
   const handleBoundsChange = useCallback((newBounds: L.LatLngBounds) => {
     setBounds(newBounds);
@@ -413,9 +427,47 @@ const MapView = () => {
           </Marker>
         ))}
 
+        {/* Congestion overlay */}
+        {congestionOverlay.map((zone) => (
+          <Circle
+            key={zone.name}
+            center={[zone.lat, zone.lon]}
+            radius={zone.radius * 1000}
+            pathOptions={{
+              color: zone.color,
+              fillColor: zone.color,
+              fillOpacity: zone.opacity,
+              weight: 2,
+              opacity: 0.6,
+            }}
+          >
+            <Tooltip direction="center" permanent={zoom >= 14} className="congestion-tooltip">
+              <div style={{ textAlign: "center", fontSize: 10, fontWeight: 600 }}>
+                <div>{zone.name}</div>
+                <div style={{ color: zone.color }}>
+                  {zone.level === "low" ? "🟢" : zone.level === "moderate" ? "🟡" : zone.level === "heavy" ? "🟠" : "🔴"}{" "}
+                  {zone.level.charAt(0).toUpperCase() + zone.level.slice(1)}
+                </div>
+              </div>
+            </Tooltip>
+          </Circle>
+        ))}
+
         <CenterOnBus />
         <LocateButton />
         <FullscreenButton />
+
+        {/* Congestion toggle */}
+        <button
+          onClick={() => setShowCongestion(!showCongestion)}
+          className={`absolute bottom-52 right-3 z-[1000] w-10 h-10 rounded-xl shadow-float flex items-center justify-center transition-colors ${
+            showCongestion ? "bg-primary text-primary-foreground" : "glass-surface hover:bg-accent"
+          }`}
+          aria-label="Toggle traffic"
+          title="Toggle traffic congestion"
+        >
+          <Layers className="w-5 h-5" />
+        </button>
       </MapContainer>
     </div>
   );

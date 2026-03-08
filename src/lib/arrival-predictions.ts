@@ -5,7 +5,7 @@ import type { GTFSData, SimulatedBus } from "./gtfs-types";
  * Simulates congestion zones and time-based traffic patterns.
  */
 
-interface CongestionZone {
+export interface CongestionZone {
   name: string;
   lat: number;
   lon: number;
@@ -14,7 +14,7 @@ interface CongestionZone {
 }
 
 // Known congestion hotspots in Tirana
-const CONGESTION_ZONES: CongestionZone[] = [
+export const CONGESTION_ZONES: CongestionZone[] = [
   { name: "Skanderbeg Square", lat: 41.3275, lon: 19.8187, radius: 0.5, baseFactor: 1.4 },
   { name: "Blloku Area", lat: 41.3190, lon: 19.8200, radius: 0.4, baseFactor: 1.3 },
   { name: "21 Dhjetori Roundabout", lat: 41.3320, lon: 19.8220, radius: 0.3, baseFactor: 1.5 },
@@ -37,7 +37,7 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
 /**
  * Get time-of-day traffic multiplier
  */
-function getTimeMultiplier(): number {
+export function getTimeMultiplier(): number {
   const hour = new Date().getHours();
   // Morning rush: 7-9
   if (hour >= 7 && hour <= 9) return 1.6;
