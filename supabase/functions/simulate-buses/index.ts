@@ -895,9 +895,12 @@ Deno.serve(async (req) => {
 
     const gtfs = await loadGTFS(supabase);
     const paths = buildRoutePaths(gtfs);
-    const buses = generateBuses(paths);
+    const schedules = buildRouteSchedules(gtfs);
+    const buses = generateBuses(paths, schedules);
 
-    const state: BusState = { buses, paths, lastUpdate: Date.now() };
+    console.log(`Built ${schedules.length} route schedules, ${paths.length} paths`);
+
+    const state: BusState = { buses, paths, schedules, lastUpdate: Date.now() };
     await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state", JSON.stringify(state), 300);
 
     return new Response(JSON.stringify({
