@@ -615,7 +615,7 @@ const MapView = () => {
                 }}
                 className="text-[10px] text-primary font-semibold hover:underline"
               >
-                {hiddenRoutes.size > 0 ? "Show all" : "Hide all"}
+                {hiddenRoutes.size > 0 ? t.showAll : t.hideAll}
               </button>
             </div>
             <div className="overflow-y-auto space-y-1 flex-1">
