@@ -105,6 +105,13 @@ export const translations = {
     secondsAgo: "s ago",
     serviceNotActive: "Bus service is not active",
     resumesIn: "Resumes in",
+    fleetActive: "fleet active",
+    nightBannerTitle: "Service Hours",
+    nightBannerSchedule: "Tirana buses operate daily from 05:00 to 23:00",
+    nightBannerMorning: "First buses depart at 05:00, full service by 06:00",
+    nightBannerEvening: "Last departures at 23:00, final buses finish by 23:30",
+    nightBannerWeekend: "Weekend service runs at ~80% capacity",
+    serviceResumes: "Service resumes in",
     // Nearest stop widget
     nearestStop: "Nearest Stop",
     metersAway: "m away",
