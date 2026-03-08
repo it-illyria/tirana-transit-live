@@ -36,6 +36,7 @@ const Index = () => {
           <FloatingHeader onPlanTrip={() => setTripPlannerOpen(true)} />
           <BottomSheet />
           <RouteDetailView />
+          <FavoriteAlertsRunner />
           <LoadingOverlay />
           <OfflineIndicator />
           <TripPlannerModal open={tripPlannerOpen} onClose={() => setTripPlannerOpen(false)} />
