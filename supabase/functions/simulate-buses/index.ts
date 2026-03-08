@@ -352,19 +352,26 @@ function buildRouteSchedules(data: any): RouteSchedule[] {
  * Returns route IDs that should have active buses at the current Tirana time.
  * During late hours, only routes with the most scheduled trips remain active.
  */
+// Late-night priority routes that should always be active (matching Google Maps)
+const LATE_NIGHT_PRIORITY_ROUTES = ["5A", "5B", "9B", "10A", "10C"];
+
 function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map<string, number> {
   const now = getTiranaTime();
   const currentHour = now.getHours();
   const active = new Map<string, number>();
 
+  // Build name→routeId lookup
+  const nameToId = new Map<string, string>();
+  for (const s of schedules) nameToId.set(s.routeName, s.routeId);
+
   // Collect routes with trips in current or previous hour
-  const candidates: { routeId: string; trips: number }[] = [];
+  const candidates: { routeId: string; routeName: string; trips: number }[] = [];
   for (const sched of schedules) {
     const currentTrips = sched.tripsByHour[currentHour] || 0;
     const prevTrips = sched.tripsByHour[(currentHour - 1 + 24) % 24] || 0;
     const totalRelevant = currentTrips + (currentHour >= 20 ? prevTrips * 0.3 : 0);
     if (totalRelevant > 0) {
-      candidates.push({ routeId: sched.routeId, trips: totalRelevant });
+      candidates.push({ routeId: sched.routeId, routeName: sched.routeName, trips: totalRelevant });
     }
   }
 
@@ -373,25 +380,38 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   // Sort by trip count (most frequent routes first)
   candidates.sort((a, b) => b.trips - a.trips);
 
-  // During late hours, match Google Maps: ~5 routes with 1 bus each = 5-7 total
+  // During late hours, match Google Maps: prioritize known late-night routes
+  if (fleetFraction < 0.2) {
+    // First, add priority routes that exist in candidates
+    const priorityIds = new Set<string>();
+    for (const name of LATE_NIGHT_PRIORITY_ROUTES) {
+      const id = nameToId.get(name);
+      if (id) {
+        active.set(id, 1);
+        priorityIds.add(id);
+      }
+    }
+    // Fill remaining slots from top candidates (not already added)
+    const maxTotal = fleetFraction <= 0.05 ? 6 : 7;
+    for (const c of candidates) {
+      if (active.size >= maxTotal) break;
+      if (!priorityIds.has(c.routeId)) {
+        active.set(c.routeId, 1);
+      }
+    }
+    return active;
+  }
+
+  // Normal hours
   let maxRoutes: number;
-  if (fleetFraction <= 0.05) {
-    // Very late (after 22:30): only 5 top routes, 1 bus each
-    maxRoutes = Math.min(5, candidates.length);
-  } else if (fleetFraction < 0.2) {
-    // Late (21:00-22:30): 5-6 routes
-    maxRoutes = Math.min(6, candidates.length);
-  } else if (fleetFraction < 0.5) {
+  if (fleetFraction < 0.5) {
     maxRoutes = Math.max(5, Math.ceil(candidates.length * fleetFraction * 2));
   } else {
     maxRoutes = candidates.length;
   }
 
   const selected = candidates.slice(0, maxRoutes);
-
   for (const c of selected) {
-    // Late hours: strictly 1 bus per route
-    // Peak: scale with frequency
     const busCount = fleetFraction >= 0.5
       ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
       : 1;
