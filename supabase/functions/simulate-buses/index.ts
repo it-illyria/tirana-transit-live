@@ -383,7 +383,7 @@ function updateBuses(state: BusState): SimulatedBus[] {
       eta_minutes: Math.round(eta),
       status: newStatus,
       passengers: Math.max(0, Math.min(60, bus.passengers + pDelta)),
-      moving_forward: newForward,
+      moving_forward: true,
     };
   });
 }

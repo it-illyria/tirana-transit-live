@@ -326,7 +326,7 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       eta_minutes: Math.round(etaMinutes),
       status: newStatus,
       passengers: Math.max(0, Math.min(60, bus.passengers + passengerDelta)),
-      moving_forward: newForward,
+      moving_forward: true,
     };
   });
 }
