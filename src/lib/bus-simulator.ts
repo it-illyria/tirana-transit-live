@@ -282,13 +282,14 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
     const currentSpeed = BASE_SPEED_KMH * speedMult * (0.8 + Math.random() * 0.4);
     const distanceKm = (currentSpeed * updateIntervalSec) / 3600;
     const progressDelta = distanceKm / path.totalDistance;
-    const forward = bus.moving_forward !== false;
-    let newProgress = forward ? bus.progress + progressDelta : bus.progress - progressDelta;
-    let newForward = forward;
+    let newProgress = bus.progress + progressDelta;
 
     // At stop behavior: pause briefly
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
+
+    // Loop forward continuously on the assigned direction (no reverse backtracking)
+    if (newProgress >= 1) newProgress = newProgress % 1;
 
     // Check if bus is near a stop
     const nearStop = path.stops.find(
@@ -300,17 +301,10 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
       newProgress = bus.progress;
     }
 
-    // Bounce at ends instead of wrapping
-    if (newProgress >= 1) { newProgress = 2 - newProgress; newForward = false; }
-    if (newProgress <= 0) { newProgress = -newProgress; newForward = true; }
-    newProgress = Math.max(0, Math.min(1, newProgress));
-
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
-    // Flip heading when moving in reverse so the arrow points correctly
-    if (!newForward) pos.heading = (pos.heading + 180) % 360;
 
     // Find next stop
-    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[path.stops.length - 1];
+    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[0];
     const distToNextStop = nextStop
       ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance
       : 0;

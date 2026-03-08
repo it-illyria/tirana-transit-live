@@ -350,26 +350,22 @@ function updateBuses(state: BusState): SimulatedBus[] {
     const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
     const distKm = (speed * elapsed) / 3600;
     const progressDelta = distKm / path.totalDistance;
-    const forward = bus.moving_forward !== false; // default true for legacy data
-    let newProgress = forward ? bus.progress + progressDelta : bus.progress - progressDelta;
-    let newForward = forward;
+    let newProgress = bus.progress + progressDelta;
 
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
+
+    // Loop forward continuously on the assigned direction (no reverse backtracking)
+    if (newProgress >= 1) newProgress = newProgress % 1;
+
     const nearStop = path.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
     if (nearStop && !wasAtStop && Math.random() < 0.4) {
       newStatus = "at_stop";
       newProgress = bus.progress;
     }
-    // Bounce at ends instead of wrapping
-    if (newProgress >= 1) { newProgress = 2 - newProgress; newForward = false; }
-    if (newProgress <= 0) { newProgress = -newProgress; newForward = true; }
-    newProgress = Math.max(0, Math.min(1, newProgress));
 
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
-    // Flip heading when moving in reverse so the arrow points correctly
-    if (!newForward) pos.heading = (pos.heading + 180) % 360;
-    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[path.stops.length - 1];
+    const nextStop = path.stops.find((s) => s.distanceAlong > newProgress) || path.stops[0];
     const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * path.totalDistance : 0;
     const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
     const pDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
