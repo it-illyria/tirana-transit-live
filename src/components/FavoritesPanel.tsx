@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import { Star, MapPin, X, AlertTriangle, Clock } from "lucide-react";
+import { Star, MapPin, X, AlertTriangle, Clock, Navigation } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
 import { getFavorites, toggleFavorite } from "@/lib/favorites";
 import { predictArrivals } from "@/lib/arrival-predictions";
