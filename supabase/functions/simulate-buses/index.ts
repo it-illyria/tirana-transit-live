@@ -473,17 +473,18 @@ function buildRoutePaths(data: any): RoutePath[] {
   return paths;
 }
 
-// ─── Generate initial buses (respects operating hours) ───────────────────────
-// Buses are generated on BOTH directions of each route. Each bus does round trips:
-// moving_forward=true → progress 0→1, moving_forward=false → progress 1→0
+// ─── Generate initial buses (schedule-aware) ─────────────────────────────────
+// Uses GTFS schedule data to determine which routes actually have service now.
+// During late hours, only routes with scheduled trips are active.
 
-function generateBuses(paths: RoutePath[]): SimulatedBus[] {
+function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
   if (fleetFraction <= 0) return [];
 
   const returnOnly = isReturnTripsOnly();
+  const activeRoutes = getActiveRoutes(schedules);
 
-  // Group paths by routeId to create round-trip pairs
+  // Group paths by routeId
   const routePaths = new Map<string, RoutePath[]>();
   for (const p of paths) {
     const arr = routePaths.get(p.routeId) || [];
@@ -495,21 +496,29 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   let idx = 0;
 
   for (const [routeId, rpaths] of routePaths) {
-    const primaryPath = rpaths[0];
-    const maxCount = Math.min(2 + Math.floor(primaryPath.totalDistance / 5), 4);
-    const count = Math.max(1, Math.round(maxCount * fleetFraction));
+    // During off-peak / late hours, only generate buses for scheduled routes
+    const scheduledCount = activeRoutes.get(routeId);
+    
+    let count: number;
+    if (fleetFraction >= 0.8) {
+      // Full service: use distance-based count scaled by fleet fraction
+      const maxCount = Math.min(2 + Math.floor(rpaths[0].totalDistance / 5), 4);
+      count = Math.max(1, Math.round(maxCount * fleetFraction));
+    } else {
+      // Reduced service: only routes with actual schedule get buses
+      if (!scheduledCount) continue; // Skip routes with no scheduled service now
+      count = scheduledCount;
+    }
 
     for (let b = 0; b < count; b++) {
-      // After last departures: all buses are on return ("kthim") trips
       const goingForward = returnOnly ? false : (b % 2 === 0);
-
+      const primaryPath = rpaths[0];
       const dirPath = rpaths.length > 1
         ? rpaths[goingForward ? 0 : 1]
         : primaryPath;
 
-      // Late night buses: position them mid-to-late in their return trip
       const progress = returnOnly
-        ? 0.3 + Math.random() * 0.5  // somewhere mid-route heading back
+        ? 0.3 + Math.random() * 0.5
         : (b / count + Math.random() * 0.05) % 1;
       const effectiveProgress = goingForward ? progress : 1 - progress;
 
@@ -545,6 +554,8 @@ function generateBuses(paths: RoutePath[]): SimulatedBus[] {
       });
     }
   }
+
+  console.log(`Generated ${buses.length} buses for ${activeRoutes.size} active routes (fleet: ${Math.round(fleetFraction * 100)}%, returnOnly: ${returnOnly})`);
   return buses;
 }
 
