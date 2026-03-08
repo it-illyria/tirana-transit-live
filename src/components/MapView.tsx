@@ -202,7 +202,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
           {predictions.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-                🚌 Predicted Arrivals
+                🚌 {t.predictedArrivals}
               </div>
               {predictions.map((p, i) => (
                 <div key={i} style={{ 
