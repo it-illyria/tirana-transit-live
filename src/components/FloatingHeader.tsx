@@ -12,6 +12,7 @@ interface Props {
 const FloatingHeader = ({ onPlanTrip }: Props) => {
   const { lang, t, toggleLang } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [favsOpen, setFavsOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   return (
