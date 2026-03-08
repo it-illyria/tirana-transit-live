@@ -444,8 +444,8 @@ const MapView = () => {
             <Tooltip direction="center" permanent={zoom >= 14} className="congestion-tooltip">
               <div style={{ textAlign: "center", fontSize: 10, fontWeight: 600 }}>
                 <div>{zone.name}</div>
-                <div style={{ color: zone.color }}>
-                  {zone.level === "low" ? "🟢" : zone.level === "moderate" ? "🟡" : zone.level === "heavy" ? "🟠" : "🔴"}{" "}
+              <div style={{ color: zone.color }}>
+                  {zone.level === "low" ? "🟢" : zone.level === "moderate" ? "🟡" : zone.level === "heavy" ? "🔴" : "⚫"}{" "}
                   {zone.level.charAt(0).toUpperCase() + zone.level.slice(1)}
                 </div>
               </div>
