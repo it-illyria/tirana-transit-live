@@ -71,9 +71,30 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               {favoriteStops.length}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
+          <div className="flex items-center gap-2">
+            {availableRoutes.length > 0 && (
+              <Select value={selectedRouteFilter} onValueChange={setSelectedRouteFilter}>
+                <SelectTrigger className="h-8 w-[100px] text-xs">
+                  <Filter className="w-3 h-3 mr-1" />
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Routes</SelectItem>
+                  {availableRoutes.map((route) => (
+                    <SelectItem key={route.route_id} value={route.route_id}>
+                      <span
+                        className="inline-block w-2 h-2 rounded-full mr-1.5"
+                        style={{ backgroundColor: `#${route.route_color || "888"}` }}
+                      />
+                      {route.route_short_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
