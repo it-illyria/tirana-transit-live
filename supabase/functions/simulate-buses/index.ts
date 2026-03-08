@@ -909,7 +909,14 @@ Deno.serve(async (req) => {
       }
 
       // Stale – update positions
-      const updatedBuses = updateBuses(state);
+      let updatedBuses = updateBuses(state);
+      
+      // If no buses but service is active, regenerate from GTFS
+      if (updatedBuses.length === 0 && fleetFraction > 0 && state.paths.length > 0) {
+        console.log("No active buses but service is running — regenerating...");
+        updatedBuses = generateBuses(state.paths, state.schedules || []);
+      }
+      
       const newState: BusState = { buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(newState), 300);
 
