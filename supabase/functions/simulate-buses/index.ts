@@ -335,43 +335,70 @@ function buildRoutePaths(data: any): RoutePath[] {
 }
 
 // ─── Generate initial buses (respects operating hours) ───────────────────────
+// Buses are generated on BOTH directions of each route. Each bus does round trips:
+// moving_forward=true → progress 0→1, moving_forward=false → progress 1→0
 
 function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
-  if (fleetFraction <= 0) return []; // No service right now
+  if (fleetFraction <= 0) return [];
+
+  // Group paths by routeId to create round-trip pairs
+  const routePaths = new Map<string, RoutePath[]>();
+  for (const p of paths) {
+    const arr = routePaths.get(p.routeId) || [];
+    arr.push(p);
+    routePaths.set(p.routeId, arr);
+  }
 
   const buses: SimulatedBus[] = [];
   let idx = 0;
-  for (const path of paths) {
-    const maxCount = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+
+  for (const [routeId, rpaths] of routePaths) {
+    // Use the first direction path for bus count calculation
+    const primaryPath = rpaths[0];
+    const maxCount = Math.min(2 + Math.floor(primaryPath.totalDistance / 5), 4);
     const count = Math.max(1, Math.round(maxCount * fleetFraction));
+
     for (let b = 0; b < count; b++) {
+      // Alternate buses between outbound and return
+      const goingForward = b % 2 === 0;
+      // Pick the appropriate direction path, or use primary if only one exists
+      const dirPath = rpaths.length > 1
+        ? rpaths[goingForward ? 0 : 1]
+        : primaryPath;
+
       const progress = (b / count + Math.random() * 0.05) % 1;
-      const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, progress);
+      const effectiveProgress = goingForward ? progress : 1 - progress;
+
+      const pos = interpolateAlongPath(dirPath.points, dirPath.segmentDistances, dirPath.totalDistance, effectiveProgress);
       const sm = getSpeedMultiplier();
-      const nextStop = path.stops.find((s) => s.distanceAlong > progress) || path.stops[path.stops.length - 1];
-      const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - progress) * path.totalDistance : 0;
+
+      const nextStop = goingForward
+        ? dirPath.stops.find((s) => s.distanceAlong > effectiveProgress) || dirPath.stops[dirPath.stops.length - 1]
+        : [...dirPath.stops].reverse().find((s) => s.distanceAlong < effectiveProgress) || dirPath.stops[0];
+
+      const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - effectiveProgress) * dirPath.totalDistance : 0;
       const eta = distToNext > 0 ? (distToNext / (BASE_SPEED_KMH * sm)) * 60 : 0;
 
       buses.push({
         vehicle_id: `TR-${String(idx++).padStart(3, "0")}`,
-        route_id: path.routeId,
-        trip_id: path.tripId,
+        route_id: routeId,
+        trip_id: dirPath.tripId,
         latitude: pos.lat,
         longitude: pos.lon,
-        heading: pos.heading,
+        heading: goingForward ? pos.heading : (pos.heading + 180) % 360,
         speed: BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4),
         timestamp: Date.now(),
-        route_color: path.routeColor,
-        route_name: path.routeName,
-        progress,
+        route_color: dirPath.routeColor,
+        route_name: dirPath.routeName,
+        progress: effectiveProgress,
         next_stop_name: nextStop?.name || "",
         next_stop_id: nextStop?.stopId || "",
         eta_minutes: Math.round(eta),
         status: Math.random() < 0.1 ? "at_stop" : "in_transit",
         passengers: Math.floor(Math.random() * 50) + 5,
-        direction_id: path.directionId,
-        moving_forward: true,
+        direction_id: dirPath.directionId,
+        moving_forward: goingForward,
       });
     }
   }
