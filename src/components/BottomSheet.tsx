@@ -53,6 +53,16 @@ const BottomSheet = () => {
     { key: "favorites", label: t.favorites, icon: Star },
   ];
 
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "on_time": return t.onTime;
+      case "slightly_delayed": return t.slightDelay;
+      case "delayed": return t.delayed;
+      case "heavily_delayed": return t.heavyDelay;
+      default: return status;
+    }
+  };
+
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-[1000] transition-transform duration-300 ease-out ${
@@ -64,7 +74,7 @@ const BottomSheet = () => {
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full flex flex-col items-center pt-3 pb-2 cursor-pointer"
-          aria-label={expanded ? "Collapse" : "Expand"}
+          aria-label={expanded ? t.close : t.findBus}
         >
           <div className="w-10 h-1 rounded-full bg-border mb-3" />
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -130,16 +140,16 @@ const BottomSheet = () => {
                       {routeBuses.length > 0 && (
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-medium text-primary">
-                            🚌 {routeBuses.length} active
+                            🚌 {routeBuses.length} {t.active}
                           </span>
                           {inTransit > 0 && (
                             <span className="text-[10px] text-green-600 font-medium">
-                              {inTransit} moving
+                              {inTransit} {t.moving}
                             </span>
                           )}
                           {atStop > 0 && (
                             <span className="text-[10px] text-yellow-600 font-medium">
-                              {atStop} at stop
+                              {atStop} {t.atStop.toLowerCase()}
                             </span>
                           )}
                         </div>
@@ -189,11 +199,11 @@ const BottomSheet = () => {
                           bus.status === "delayed" ? "bg-red-100 text-red-700" : 
                           "bg-green-100 text-green-700"
                         }`}>
-                          {bus.status === "at_stop" ? "At Stop" : bus.status === "delayed" ? "Delayed" : `${Math.round(bus.speed)} km/h`}
+                          {bus.status === "at_stop" ? t.atStop : bus.status === "delayed" ? t.delayed : `${Math.round(bus.speed)} km/h`}
                         </span>
                         {bus.next_stop_name && (
                           <span className="text-xs text-muted-foreground truncate">
-                            → {bus.next_stop_name} {bus.eta_minutes > 0 && `(${bus.eta_minutes}m)`}
+                            → {bus.next_stop_name} {bus.eta_minutes > 0 && `(${bus.eta_minutes}${t.minutes})`}
                           </span>
                         )}
                       </button>
@@ -240,6 +250,16 @@ function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
     return getUpcomingDepartures(data, stop.stop_id, 3);
   }, [data, stop.stop_id]);
 
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "on_time": return t.onTime;
+      case "slightly_delayed": return `+${t.slightDelay}`;
+      case "delayed": return t.delayed;
+      case "heavily_delayed": return t.heavyDelay;
+      default: return status;
+    }
+  };
+
   return (
     <div className="p-3 rounded-xl bg-card shadow-sm">
       <div className="flex items-center gap-2 mb-2">
@@ -251,7 +271,7 @@ function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
       {predictions.length > 0 && (
         <div className="mb-2">
           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-            🚌 Live Arrivals
+            🚌 {t.liveArrivals}
           </div>
           {predictions.map((p, i) => (
             <div key={i} className="flex items-center gap-2 text-xs py-0.5">
@@ -261,15 +281,13 @@ function FavoriteStopCard({ stop }: FavoriteStopCardProps) {
               >
                 {p.routeName}
               </span>
-              <span className="font-bold text-foreground">{p.predictedMinutes}m</span>
+              <span className="font-bold text-foreground">{p.predictedMinutes}{t.minutes}</span>
               <span className={`px-1 py-0.5 rounded text-[9px] font-semibold text-white ${
                 p.status === "on_time" ? "bg-green-500" :
                 p.status === "slightly_delayed" ? "bg-yellow-500" :
                 p.status === "delayed" ? "bg-orange-500" : "bg-red-500"
               }`}>
-                {p.status === "on_time" ? "On Time" :
-                 p.status === "slightly_delayed" ? "+Slight" :
-                 p.status === "delayed" ? `+${p.delayMinutes}m` : `+${p.delayMinutes}m`}
+                {statusLabel(p.status)}
               </span>
               {p.congestionLevel !== "low" && (
                 <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">

@@ -68,7 +68,7 @@ const FloatingHeader = ({ onPlanTrip }: Props) => {
               aria-label="Toggle language"
             >
               <Globe className="w-4 h-4 text-muted-foreground" />
-              <span>{lang === "en" ? "ALB" : "ENG"}</span>
+              <span>{lang === "sq" ? "ENG" : "SHQ"}</span>
             </button>
           </div>
         </div>

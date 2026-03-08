@@ -16,7 +16,7 @@ function FavoriteAlertsRunner() {
 }
 
 const Index = () => {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>("sq");
   const [tripPlannerOpen, setTripPlannerOpen] = useState(false);
 
   const i18n = useMemo(

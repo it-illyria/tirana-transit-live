@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Polyline, Marker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import { useGTFS } from "@/contexts/GTFSContext";
+import { useI18n } from "@/lib/i18n";
 
 const WALK_SPEED_KMH = 5;
 
@@ -29,6 +30,7 @@ const userIcon = new L.DivIcon({
 });
 
 const WalkToStop = () => {
+  const { t } = useI18n();
   const { data } = useGTFS();
   const map = useMap();
   const [userPos, setUserPos] = useState<[number, number] | null>(null);
@@ -39,7 +41,6 @@ const WalkToStop = () => {
     };
     map.on("locationfound", onLocationFound);
 
-    // Also try to get location proactively
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setUserPos([pos.coords.latitude, pos.coords.longitude]),
@@ -66,21 +67,19 @@ const WalkToStop = () => {
     return best;
   }, [userPos, data]);
 
-  if (!userPos || !nearestStop || nearestStop.dist > 3) return null; // Hide if > 3km
+  if (!userPos || !nearestStop || nearestStop.dist > 3) return null;
 
   const walkMinutes = Math.round((nearestStop.dist / WALK_SPEED_KMH) * 60);
   const distMeters = Math.round(nearestStop.dist * 1000);
 
   return (
     <>
-      {/* User position marker */}
       <Marker position={userPos} icon={userIcon}>
         <Tooltip direction="top" offset={[0, -12]} permanent={false}>
-          <span style={{ fontSize: 11, fontWeight: 600 }}>📍 You are here</span>
+          <span style={{ fontSize: 11, fontWeight: 600 }}>📍 {t.youAreHere}</span>
         </Tooltip>
       </Marker>
 
-      {/* Dashed walking line */}
       <Polyline
         positions={[userPos, [nearestStop.stop.stop_lat, nearestStop.stop.stop_lon]]}
         pathOptions={{
@@ -92,7 +91,6 @@ const WalkToStop = () => {
         }}
       />
 
-      {/* Walk info at midpoint */}
       <Marker
         position={[
           (userPos[0] + nearestStop.stop.stop_lat) / 2,
@@ -112,14 +110,14 @@ const WalkToStop = () => {
             display: flex;
             align-items: center;
             gap: 4px;
-          ">🚶 ${walkMinutes} min · ${distMeters}m</div>`,
+          ">🚶 ${walkMinutes} ${t.minutes} · ${distMeters}m</div>`,
           iconSize: [0, 0],
           iconAnchor: [50, 10],
         })}
       >
         <Tooltip direction="bottom" offset={[0, 8]} permanent={false}>
           <span style={{ fontSize: 11 }}>
-            Walk to <strong>{nearestStop.stop.stop_name}</strong>
+            {t.walkTo} <strong>{nearestStop.stop.stop_name}</strong>
           </span>
         </Tooltip>
       </Marker>

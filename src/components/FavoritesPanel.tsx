@@ -24,7 +24,6 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
   const [favIds, setFavIds] = useState<string[]>([]);
   const [selectedRouteFilter, setSelectedRouteFilter] = useState<string>("all");
 
-  // Re-read favorites when panel opens or buses update (triggers re-render)
   useEffect(() => {
     if (open) setFavIds(getFavorites());
   }, [open, buses]);
@@ -34,7 +33,6 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
     return data.stops.filter((s) => favIds.includes(s.stop_id));
   }, [data, favIds]);
 
-  // Get unique routes serving favorite stops
   const availableRoutes = useMemo(() => {
     if (!data || favoriteStops.length === 0) return [];
     const routeIds = new Set<string>();
@@ -57,12 +55,9 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
 
   return (
     <div className="fixed inset-0 z-[1100] flex justify-end">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Panel */}
       <div className="relative w-full max-w-sm h-full bg-card shadow-[-8px_0_32px_-8px_hsl(var(--foreground)/0.15)] flex flex-col animate-in slide-in-from-right duration-300">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
@@ -76,10 +71,10 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
               <Select value={selectedRouteFilter} onValueChange={setSelectedRouteFilter}>
                 <SelectTrigger className="h-8 w-[100px] text-xs">
                   <Filter className="w-3 h-3 mr-1" />
-                  <SelectValue placeholder="All" />
+                  <SelectValue placeholder={t.allRoutesFilter} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Routes</SelectItem>
+                  <SelectItem value="all">{t.allRoutesFilter}</SelectItem>
                   {availableRoutes.map((route) => (
                     <SelectItem key={route.route_id} value={route.route_id}>
                       <span
@@ -95,13 +90,12 @@ const FavoritesPanel = ({ open, onClose }: Props) => {
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {favoriteStops.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -161,14 +155,12 @@ function FavStopCard({
     return deps.slice(0, 3);
   }, [data, stop.stop_id, routeFilter]);
 
-  // Hide card if filtered and no matching arrivals/departures
   if (routeFilter !== "all" && predictions.length === 0 && departures.length === 0) {
     return null;
   }
 
   return (
     <div className="rounded-xl bg-secondary/50 border border-border p-3">
-      {/* Stop header */}
       <div className="flex items-center justify-between mb-2.5">
         <button
           onClick={onLocate}
@@ -181,18 +173,17 @@ function FavStopCard({
         <button
           onClick={onRemove}
           className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
-          aria-label="Remove favorite"
+          aria-label={t.removeFavorite}
         >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Live arrivals */}
       {predictions.length > 0 ? (
         <div className="mb-2">
           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Live Arrivals
+            {t.liveArrivals}
           </div>
           <div className="space-y-1">
             {predictions.map((p, i) => (
@@ -207,10 +198,10 @@ function FavStopCard({
                   {p.routeName}
                 </span>
                 <span className="text-sm font-bold text-foreground">
-                  {p.predictedMinutes <= 0 ? "Now" : `${p.predictedMinutes}m`}
+                  {p.predictedMinutes <= 0 ? t.now : `${p.predictedMinutes}${t.minutes}`}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
-                  {p.stopsAway} stop{p.stopsAway !== 1 ? "s" : ""}
+                  {p.stopsAway} {p.stopsAway !== 1 ? t.stopsAway : t.stopAway}
                 </span>
                 <span
                   className={`ml-auto px-1.5 py-0.5 rounded text-[9px] font-semibold text-white ${
@@ -224,8 +215,8 @@ function FavStopCard({
                   }`}
                 >
                   {p.status === "on_time"
-                    ? "On Time"
-                    : `+${p.delayMinutes}m`}
+                    ? t.onTime
+                    : `+${p.delayMinutes}${t.minutes}`}
                 </span>
                 {p.congestionLevel !== "low" && (
                   <AlertTriangle className="w-3 h-3 text-yellow-500 shrink-0" />
@@ -237,11 +228,10 @@ function FavStopCard({
       ) : (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
           <Clock className="w-3.5 h-3.5" />
-          No buses approaching
+          {t.noBusesApproaching}
         </div>
       )}
 
-      {/* Scheduled */}
       {departures.length > 0 && (
         <div>
           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
