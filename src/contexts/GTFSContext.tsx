@@ -23,6 +23,8 @@ interface GTFSContextType {
   setSelectedRouteId: (id: string | null) => void;
   selectedBusId: string | null;
   setSelectedBusId: (id: string | null) => void;
+  focusStopId: string | null;
+  setFocusStopId: (id: string | null) => void;
   retry: () => void;
 }
 
