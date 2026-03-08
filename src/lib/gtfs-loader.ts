@@ -2,8 +2,9 @@ import JSZip from "jszip";
 import Papa from "papaparse";
 import type { GTFSData, GTFSRoute, GTFSStop, GTFSTrip, GTFSStopTime, GTFSShape } from "./gtfs-types";
 
-const GTFS_URL = "https://transitous.org/feeds/municipality-of-tirana~gtfs.zip";
-const CORS_PROXY = "https://corsproxy.io/?url=";
+import { supabase } from "@/integrations/supabase/client";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const CACHE_KEY = "tirana_gtfs_data";
 const CACHE_TS_KEY = "tirana_gtfs_timestamp";
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -35,7 +36,7 @@ export async function loadGTFSData(
   }
 
   onProgress?.("Downloading GTFS feed...");
-  const response = await fetch(CORS_PROXY + encodeURIComponent(GTFS_URL));
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/fetch-gtfs`);
   if (!response.ok) throw new Error(`Failed to fetch GTFS: ${response.status}`);
 
   const blob = await response.blob();
