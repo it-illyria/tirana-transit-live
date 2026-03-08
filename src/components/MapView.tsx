@@ -562,7 +562,7 @@ const MapView = () => {
           <Marker
             key={bus.vehicle_id}
             position={[bus.latitude, bus.longitude]}
-            icon={createBusIcon(bus.route_color, bus.heading)}
+            icon={createBusIcon(bus.route_color, bus.heading, bus.moving_forward ? "Vajtje" : "Kthim")}
           >
             <Popup>
               <div style={{ minWidth: 160 }}>
