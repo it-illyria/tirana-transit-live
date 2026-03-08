@@ -274,10 +274,41 @@ const MapView = () => {
             icon={createBusIcon(bus.route_color, bus.heading)}
           >
             <Popup>
-              <div style={{ minWidth: 140 }}>
-                <strong style={{ fontSize: 13 }}>{bus.route_name}</strong>
-                <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
+              <div style={{ minWidth: 160 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <span style={{
+                    background: bus.route_color,
+                    color: "white",
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}>{bus.route_name}</span>
+                  <span style={{
+                    fontSize: 10,
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                    background: bus.status === "at_stop" ? "#f59e0b" : bus.status === "delayed" ? "#ef4444" : "#22c55e",
+                    color: "white",
+                    fontWeight: 600,
+                  }}>{bus.status === "at_stop" ? "At Stop" : bus.status === "delayed" ? "Delayed" : "In Transit"}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#666" }}>
                   {bus.vehicle_id} · {Math.round(bus.speed)} km/h
+                </div>
+                {bus.next_stop_name && (
+                  <div style={{ fontSize: 11, marginTop: 4 }}>
+                    <span style={{ color: "#999" }}>Next: </span>
+                    <strong>{bus.next_stop_name}</strong>
+                    {bus.eta_minutes > 0 && (
+                      <span style={{ color: "#22c55e", fontWeight: 600, marginLeft: 4 }}>
+                        ~{bus.eta_minutes} min
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: "#999", marginTop: 3 }}>
+                  👥 {bus.passengers} passengers
                 </div>
               </div>
             </Popup>

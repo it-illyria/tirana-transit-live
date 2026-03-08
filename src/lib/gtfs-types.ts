@@ -48,6 +48,14 @@ export interface SimulatedBus {
   timestamp: number;
   route_color: string;
   route_name: string;
+  // Enhanced simulator fields
+  progress: number; // 0-1 along the route path
+  next_stop_name: string;
+  next_stop_id: string;
+  eta_minutes: number;
+  status: "in_transit" | "at_stop" | "delayed";
+  passengers: number;
+  direction_id: string;
 }
 
 export interface GTFSData {
