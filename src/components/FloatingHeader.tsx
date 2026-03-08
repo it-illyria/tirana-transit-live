@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Bell, Bus, Globe, Navigation } from "lucide-react";
+import { Bell, Bus, Globe, Navigation, Moon, Sun } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/hooks/use-theme";
 import NotificationSettingsPanel from "@/components/NotificationSettingsPanel";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 const FloatingHeader = ({ onPlanTrip }: Props) => {
   const { lang, t, toggleLang } = useI18n();
   const [notifOpen, setNotifOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <>
