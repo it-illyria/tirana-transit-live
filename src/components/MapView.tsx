@@ -236,7 +236,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 10, color: "#888" }}>
-                    <span>{p.stopsAway} stops away</span>
+                    <span>{p.stopsAway} {p.stopsAway !== 1 ? t.stopsAway : t.stopAway}</span>
                     <span>·</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <span style={{
