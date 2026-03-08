@@ -219,6 +219,13 @@ export const translations = {
     secondsAgo: "s më parë",
     serviceNotActive: "Shërbimi i autobusëve nuk është aktiv",
     resumesIn: "Rifillon për",
+    fleetActive: "flota aktive",
+    nightBannerTitle: "Orari i Shërbimit",
+    nightBannerSchedule: "Autobusët e Tiranës operojnë çdo ditë nga 05:00 deri në 23:00",
+    nightBannerMorning: "Autobusët e parë nisen në 05:00, shërbim i plotë deri në 06:00",
+    nightBannerEvening: "Nisjet e fundit në 23:00, autobusët përfundojnë deri në 23:30",
+    nightBannerWeekend: "Shërbimi i fundjavës funksionon me ~80% kapacitet",
+    serviceResumes: "Shërbimi rifillon për",
     // Nearest stop widget
     nearestStop: "Stacioni më i afërt",
     metersAway: "m larg",

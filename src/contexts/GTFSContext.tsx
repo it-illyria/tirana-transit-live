@@ -113,6 +113,7 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
           busCount: json.buses.length,
           serviceStatus: "active",
           source: json.source || "simulation",
+          fleetFraction: json.fleetFraction ?? 1,
         });
       }
     } catch (e) {
