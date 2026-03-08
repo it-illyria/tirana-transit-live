@@ -167,10 +167,10 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
 
   const statusLabel = (status: ArrivalPrediction["status"]) => {
     switch (status) {
-      case "on_time": return "On Time";
-      case "slightly_delayed": return "Slight Delay";
-      case "delayed": return "Delayed";
-      case "heavily_delayed": return "Heavy Delay";
+      case "on_time": return t.onTime;
+      case "slightly_delayed": return t.slightDelay;
+      case "delayed": return t.delayed;
+      case "heavily_delayed": return t.heavyDelay;
     }
   };
 
@@ -202,7 +202,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
           {predictions.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#666", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>
-                🚌 Predicted Arrivals
+                🚌 {t.predictedArrivals}
               </div>
               {predictions.map((p, i) => (
                 <div key={i} style={{ 
@@ -222,7 +222,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                       textAlign: "center",
                     }}>{p.routeName}</span>
                     <span style={{ fontWeight: 700, color: "#333" }}>
-                      {p.predictedMinutes} min
+                      {p.predictedMinutes} {t.minutes}
                     </span>
                     <span style={{
                       fontSize: 9,
@@ -236,7 +236,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 10, color: "#888" }}>
-                    <span>{p.stopsAway} stops away</span>
+                    <span>{p.stopsAway} {p.stopsAway !== 1 ? t.stopsAway : t.stopAway}</span>
                     <span>·</span>
                     <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <span style={{
@@ -244,7 +244,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
                         background: congestionColor(p.congestionLevel),
                         display: "inline-block",
                       }} />
-                      Traffic: {p.congestionLevel}
+                      {t.traffic}: {p.congestionLevel}
                     </span>
                     {p.delayMinutes > 0 && (
                       <>
@@ -292,6 +292,7 @@ const StopMarker = memo(({ stop, data }: { stop: { stop_id: string; stop_name: s
 StopMarker.displayName = "StopMarker";
 
 const MapView = () => {
+  const { t } = useI18n();
   const { data, buses, selectedRouteId } = useGTFS();
   const { theme } = useTheme();
   const [bounds, setBounds] = useState<L.LatLngBounds | null>(null);
@@ -546,14 +547,14 @@ const MapView = () => {
                     background: bus.status === "at_stop" ? "#f59e0b" : bus.status === "delayed" ? "#ef4444" : "#22c55e",
                     color: "white",
                     fontWeight: 600,
-                  }}>{bus.status === "at_stop" ? "At Stop" : bus.status === "delayed" ? "Delayed" : "In Transit"}</span>
+                  }}>{bus.status === "at_stop" ? t.atStop : bus.status === "delayed" ? t.delayed : t.inTransit}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#666" }}>
                   {bus.vehicle_id} · {Math.round(bus.speed)} km/h
                 </div>
                 {bus.next_stop_name && (
                   <div style={{ fontSize: 11, marginTop: 4 }}>
-                    <span style={{ color: "#999" }}>Next: </span>
+                    <span style={{ color: "#999" }}>{t.next}: </span>
                     <strong>{bus.next_stop_name}</strong>
                     {bus.eta_minutes > 0 && (
                       <span style={{ color: "#22c55e", fontWeight: 600, marginLeft: 4 }}>
@@ -563,7 +564,7 @@ const MapView = () => {
                   </div>
                 )}
                 <div style={{ fontSize: 10, color: "#999", marginTop: 3 }}>
-                  👥 {bus.passengers} passengers
+                  👥 {bus.passengers} {t.passengers}
                 </div>
               </div>
             </Popup>
@@ -607,7 +608,7 @@ const MapView = () => {
         {showRouteLegend && (
           <div className="absolute top-3 right-3 z-[1000] glass-surface rounded-xl shadow-float p-3 w-[200px] max-h-[60vh] flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-foreground">Routes</span>
+              <span className="text-xs font-bold text-foreground">{t.routesLabel}</span>
               <button
                 onClick={() => {
                   if (hiddenRoutes.size > 0) setHiddenRoutes(new Set());
@@ -615,7 +616,7 @@ const MapView = () => {
                 }}
                 className="text-[10px] text-primary font-semibold hover:underline"
               >
-                {hiddenRoutes.size > 0 ? "Show all" : "Hide all"}
+                {hiddenRoutes.size > 0 ? t.showAll : t.hideAll}
               </button>
             </div>
             <div className="overflow-y-auto space-y-1 flex-1">
@@ -661,34 +662,34 @@ const MapView = () => {
         {/* Congestion Legend */}
         {showCongestion && (
           <div className="absolute top-3 left-3 z-[1000] glass-surface rounded-xl shadow-float p-3 max-w-[180px]">
-            <div className="text-xs font-bold text-foreground mb-2">Traffic Conditions</div>
+            <div className="text-xs font-bold text-foreground mb-2">{t.trafficConditions}</div>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#22c55e" }} />
-                <span className="text-[11px] text-foreground font-medium">Low traffic</span>
+                <span className="text-[11px] text-foreground font-medium">{t.lowTraffic}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#eab308" }} />
-                <span className="text-[11px] text-foreground font-medium">Moderate congestion</span>
+                <span className="text-[11px] text-foreground font-medium">{t.moderateCongestion}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#ef4444" }} />
-                <span className="text-[11px] text-foreground font-medium">Heavy congestion</span>
+                <span className="text-[11px] text-foreground font-medium">{t.heavyCongestion}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#111111" }} />
-                <span className="text-[11px] text-foreground font-medium">Severe congestion</span>
+                <span className="text-[11px] text-foreground font-medium">{t.severeCongestion}</span>
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-border">
               <div className="text-[10px] text-muted-foreground">
                 {new Date().getHours() >= 7 && new Date().getHours() <= 9
-                  ? "🕐 Morning rush hour"
+                  ? `🕐 ${t.morningRush}`
                   : new Date().getHours() >= 17 && new Date().getHours() <= 19
-                  ? "🕐 Evening rush hour"
+                  ? `🕐 ${t.eveningRush}`
                   : new Date().getHours() >= 22 || new Date().getHours() <= 5
-                  ? "🌙 Low traffic period"
-                  : "🕐 Normal traffic"}
+                  ? `🌙 ${t.lowTrafficPeriod}`
+                  : `🕐 ${t.normalTraffic}`}
               </div>
             </div>
           </div>

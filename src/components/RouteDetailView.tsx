@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { X, MapPin, ArrowDown, Clock, Users, AlertTriangle, Timer } from "lucide-react";
 import { useGTFS } from "@/contexts/GTFSContext";
+import { useI18n } from "@/lib/i18n";
 import { predictArrivals, getCongestionFactor, type ArrivalPrediction } from "@/lib/arrival-predictions";
 
 /** Live Tirana clock hook — updates every second */
@@ -10,20 +11,19 @@ function useTiranaClock() {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
-  const formatted = now.toLocaleTimeString("en-GB", {
+  const formatted = now.toLocaleTimeString("sq-AL", {
     timeZone: "Europe/Tirane",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
   });
-  const dateFormatted = now.toLocaleDateString("en-GB", {
+  const dateFormatted = now.toLocaleDateString("sq-AL", {
     timeZone: "Europe/Tirane",
     weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-  // Get Tirana hours & minutes for calculations
   const tiranaHM = now.toLocaleTimeString("en-GB", {
     timeZone: "Europe/Tirane",
     hour: "2-digit",
@@ -46,7 +46,8 @@ function useCountdown() {
 }
 
 function CountdownBadge({ minutes }: { minutes: number }) {
-  useCountdown(); // force re-render every second
+  const { t } = useI18n();
+  useCountdown();
   const [startedAt] = useState(() => Date.now());
 
   const elapsedSec = Math.floor((Date.now() - startedAt) / 1000);
@@ -57,7 +58,7 @@ function CountdownBadge({ minutes }: { minutes: number }) {
   if (totalSec <= 0) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-xs font-bold animate-pulse">
-        🚌 Arriving now
+        🚌 {t.arrivingNow}
       </span>
     );
   }
@@ -75,6 +76,7 @@ function CountdownBadge({ minutes }: { minutes: number }) {
 }
 
 const RouteDetailView = () => {
+  const { t } = useI18n();
   const { data, buses, selectedRouteId, setSelectedRouteId, setSelectedBusId } = useGTFS();
   const { formatted: tiranaTime, dateFormatted: tiranaDate, tiranaMinutes } = useTiranaClock();
 
@@ -83,7 +85,6 @@ const RouteDetailView = () => {
     return data.routes.find((r) => r.route_id === selectedRouteId) || null;
   }, [data, selectedRouteId]);
 
-  // Get ordered stops for this route (BOTH directions for round-trip)
   const routeStops = useMemo(() => {
     if (!data || !selectedRouteId) return [];
 
@@ -92,7 +93,6 @@ const RouteDetailView = () => {
 
     const stopMap = new Map(data.stops.map((s) => [s.stop_id, s]));
 
-    // Group trips by direction_id, pick one trip per direction
     const dirTrips = new Map<string, typeof routeTrips[0]>();
     for (const trip of routeTrips) {
       const dir = trip.direction_id ?? "0";
@@ -114,8 +114,8 @@ const RouteDetailView = () => {
         .sort((a, b) => a.stop_sequence - b.stop_sequence);
 
       const label = dirs.length > 1
-        ? (dir === "0" ? "Outbound" : "Return")
-        : "Route";
+        ? (dir === "0" ? t.outbound : t.returnTrip)
+        : t.route;
 
       for (const st of stopTimes) {
         const stop = stopMap.get(st.stop_id);
@@ -135,9 +135,8 @@ const RouteDetailView = () => {
     }
 
     return allStops;
-  }, [data, selectedRouteId]);
+  }, [data, selectedRouteId, t]);
 
-  // Get predictions for each stop
   const stopPredictions = useMemo(() => {
     if (!data || !buses.length || !routeStops.length) return new Map<string, ArrivalPrediction[]>();
 
@@ -152,16 +151,13 @@ const RouteDetailView = () => {
     return map;
   }, [data, buses, routeStops, selectedRouteId]);
 
-  // Buses on this route
   const routeBuses = useMemo(() => {
     return buses.filter((b) => b.route_id === selectedRouteId);
   }, [buses, selectedRouteId]);
 
-  // Find which stop each bus is nearest to
   const busNearStop = useMemo(() => {
     const map = new Map<string, typeof routeBuses>();
     for (const bus of routeBuses) {
-      // Find nearest stop
       let nearestId = "";
       let minDist = Infinity;
       for (const stop of routeStops) {
@@ -180,33 +176,29 @@ const RouteDetailView = () => {
     return map;
   }, [routeBuses, routeStops]);
 
-  // Compute inter-stop travel times (congestion-adjusted)
   const interStopMinutes = useMemo(() => {
     if (routeStops.length < 2) return [];
-    const BASE_SPEED = 18; // km/h
+    const BASE_SPEED = 18;
     const R = 6371;
     const toRad = (d: number) => (d * Math.PI) / 180;
 
     return routeStops.slice(0, -1).map((s, i) => {
       const next = routeStops[i + 1];
-      // Haversine
       const dLat = toRad(next.stop_lat - s.stop_lat);
       const dLon = toRad(next.stop_lon - s.stop_lon);
       const a = Math.sin(dLat / 2) ** 2 +
         Math.cos(toRad(s.stop_lat)) * Math.cos(toRad(next.stop_lat)) * Math.sin(dLon / 2) ** 2;
       const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-      // Congestion at midpoint
       const midLat = (s.stop_lat + next.stop_lat) / 2;
       const midLon = (s.stop_lon + next.stop_lon) / 2;
       const congestion = getCongestionFactor(midLat, midLon);
       const effectiveSpeed = BASE_SPEED / congestion;
-      const minutes = (distKm / effectiveSpeed) * 60 + 0.5; // +30s dwell
+      const minutes = (distKm / effectiveSpeed) * 60 + 0.5;
       return Math.max(1, Math.round(minutes));
     });
   }, [routeStops]);
 
-  // Compute real-time ETA for each stop based on current Tirana time
   const realtimeETAs = useMemo(() => {
     if (routeStops.length === 0 || interStopMinutes.length === 0) return [];
     const etas: string[] = [];
@@ -234,16 +226,16 @@ const RouteDetailView = () => {
 
   const statusLabel = (status: ArrivalPrediction["status"]) => {
     switch (status) {
-      case "on_time": return "On Time";
-      case "slightly_delayed": return "Slight Delay";
-      case "delayed": return "Delayed";
-      case "heavily_delayed": return "Heavy Delay";
+      case "on_time": return t.onTime;
+      case "slightly_delayed": return t.slightDelay;
+      case "delayed": return t.delayed;
+      case "heavily_delayed": return t.heavyDelay;
     }
   };
 
-  const formatTime = (t: string) => {
-    const parts = t.split(":");
-    if (parts.length < 2) return t;
+  const formatTime = (time: string) => {
+    const parts = time.split(":");
+    if (parts.length < 2) return time;
     const h = parseInt(parts[0]) % 24;
     return `${h.toString().padStart(2, "0")}:${parts[1]}`;
   };
@@ -263,19 +255,18 @@ const RouteDetailView = () => {
             <p className="text-base font-bold text-foreground">{route.route_short_name} {route.route_long_name}</p>
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               <span className="text-xs text-primary font-semibold">
-                🚌 {routeBuses.length} active
+                🚌 {routeBuses.length} {t.active}
               </span>
               <span className="text-xs text-muted-foreground">
-                {routeStops.length} stops
+                {routeStops.length} {t.stops.toLowerCase()}
               </span>
               {interStopMinutes.length > 0 && (
                 <span className="text-xs font-semibold text-foreground flex items-center gap-0.5">
                   <Timer className="w-3 h-3" />
-                  {interStopMinutes.reduce((a, b) => a + b, 0)} min total
+                  {interStopMinutes.reduce((a, b) => a + b, 0)} {t.minTotal}
                 </span>
               )}
             </div>
-            {/* Tirana real-time clock */}
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[10px] font-mono text-primary font-bold">
                 🕐 {tiranaTime}
@@ -341,7 +332,7 @@ const RouteDetailView = () => {
                         {interStopMinutes[idx] !== undefined && (
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-medium text-muted-foreground flex items-center gap-0.5">
                             <Timer className="w-2.5 h-2.5" />
-                            {interStopMinutes[idx]} min
+                            {interStopMinutes[idx]} {t.minutes}
                           </span>
                         )}
                       </div>
@@ -363,7 +354,7 @@ const RouteDetailView = () => {
                             {realtimeETAs[idx] || formatTime(stop.arrival_time)}
                           </span>
                           <span className="ml-1 text-muted-foreground/60">
-                            (sched. {formatTime(stop.arrival_time)})
+                            ({t.sched} {formatTime(stop.arrival_time)})
                           </span>
                         </p>
                       </div>
@@ -383,7 +374,7 @@ const RouteDetailView = () => {
                               bus.status === "at_stop" ? "bg-yellow-500" :
                               bus.status === "delayed" ? "bg-red-500" : "bg-green-500"
                             }`}>
-                              {bus.status === "at_stop" ? "At Stop" : `${Math.round(bus.speed)} km/h`}
+                              {bus.status === "at_stop" ? t.atStop : `${Math.round(bus.speed)} km/h`}
                             </span>
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <Users className="w-2.5 h-2.5" /> {bus.passengers}
