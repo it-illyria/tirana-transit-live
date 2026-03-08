@@ -123,18 +123,30 @@ function interpolateAlongPath(
 
 const BASE_SPEED_KMH = 18;
 
-// Tirana buses operate ~5:00 – 23:00
-const SERVICE_START_HOUR = 5;   // first buses depart at 5:00
-const SERVICE_END_HOUR = 23;    // last departures at 23:00
-const RAMP_UP_MINUTES = 60;     // takes 60 min to reach full service (5:00-6:00)
-const RAMP_DOWN_MINUTES = 30;   // last buses finish routes by ~23:30
+// Tirana buses operate ~5:00 – 23:00 (local time)
+const SERVICE_START_HOUR = 5;
+const SERVICE_END_HOUR = 23;
+const RAMP_UP_MINUTES = 60;
+const RAMP_DOWN_MINUTES = 30;
 
-/**
- * Returns the fraction of fleet that should be active (0.0 – 1.0).
- * Handles gradual morning startup and evening wind-down.
- */
-function getFleetFraction(): number {
+/** Get current Tirana local time (Europe/Tirane: UTC+1 CET / UTC+2 CEST) */
+function getTiranaTime(): Date {
+  // Use Intl to get the correct offset for Tirana
   const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Tirane",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || "0");
+  const local = new Date(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return local;
+}
+
+function getFleetFraction(): number {
+  const now = getTiranaTime();
   const hour = now.getHours();
   const minute = now.getMinutes();
   const totalMin = hour * 60 + minute;
@@ -142,28 +154,17 @@ function getFleetFraction(): number {
   const startMin = SERVICE_START_HOUR * 60;
   const endMin = SERVICE_END_HOUR * 60;
 
-  // Dead of night: no buses
   if (totalMin < startMin || totalMin > endMin + RAMP_DOWN_MINUTES) return 0;
+  if (totalMin < startMin + RAMP_UP_MINUTES) return (totalMin - startMin) / RAMP_UP_MINUTES;
+  if (totalMin > endMin) return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
 
-  // Morning ramp-up: gradual increase
-  if (totalMin < startMin + RAMP_UP_MINUTES) {
-    return (totalMin - startMin) / RAMP_UP_MINUTES;
-  }
-
-  // Evening ramp-down: gradual decrease
-  if (totalMin > endMin) {
-    return 1 - (totalMin - endMin) / RAMP_DOWN_MINUTES;
-  }
-
-  // Weekend: slightly reduced service (~80%)
   const dayOfWeek = now.getDay();
   if (dayOfWeek === 0 || dayOfWeek === 6) return 0.8;
-
   return 1.0;
 }
 
 function getSpeedMultiplier(): number {
-  const hour = new Date().getHours();
+  const hour = getTiranaTime().getHours();
   if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) return 0.6;
   if (hour >= 22 || hour <= 6) return 1.3;
   return 1.0;
@@ -334,70 +335,101 @@ function buildRoutePaths(data: any): RoutePath[] {
 }
 
 // ─── Generate initial buses (respects operating hours) ───────────────────────
+// Buses are generated on BOTH directions of each route. Each bus does round trips:
+// moving_forward=true → progress 0→1, moving_forward=false → progress 1→0
 
 function generateBuses(paths: RoutePath[]): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
-  if (fleetFraction <= 0) return []; // No service right now
+  if (fleetFraction <= 0) return [];
+
+  // Group paths by routeId to create round-trip pairs
+  const routePaths = new Map<string, RoutePath[]>();
+  for (const p of paths) {
+    const arr = routePaths.get(p.routeId) || [];
+    arr.push(p);
+    routePaths.set(p.routeId, arr);
+  }
 
   const buses: SimulatedBus[] = [];
   let idx = 0;
-  for (const path of paths) {
-    const maxCount = Math.min(2 + Math.floor(path.totalDistance / 5), 4);
+
+  for (const [routeId, rpaths] of routePaths) {
+    // Use the first direction path for bus count calculation
+    const primaryPath = rpaths[0];
+    const maxCount = Math.min(2 + Math.floor(primaryPath.totalDistance / 5), 4);
     const count = Math.max(1, Math.round(maxCount * fleetFraction));
+
     for (let b = 0; b < count; b++) {
+      // Alternate buses between outbound and return
+      const goingForward = b % 2 === 0;
+      // Pick the appropriate direction path, or use primary if only one exists
+      const dirPath = rpaths.length > 1
+        ? rpaths[goingForward ? 0 : 1]
+        : primaryPath;
+
       const progress = (b / count + Math.random() * 0.05) % 1;
-      const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, progress);
+      const effectiveProgress = goingForward ? progress : 1 - progress;
+
+      const pos = interpolateAlongPath(dirPath.points, dirPath.segmentDistances, dirPath.totalDistance, effectiveProgress);
       const sm = getSpeedMultiplier();
-      const nextStop = path.stops.find((s) => s.distanceAlong > progress) || path.stops[path.stops.length - 1];
-      const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - progress) * path.totalDistance : 0;
+
+      const nextStop = goingForward
+        ? dirPath.stops.find((s) => s.distanceAlong > effectiveProgress) || dirPath.stops[dirPath.stops.length - 1]
+        : [...dirPath.stops].reverse().find((s) => s.distanceAlong < effectiveProgress) || dirPath.stops[0];
+
+      const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - effectiveProgress) * dirPath.totalDistance : 0;
       const eta = distToNext > 0 ? (distToNext / (BASE_SPEED_KMH * sm)) * 60 : 0;
 
       buses.push({
         vehicle_id: `TR-${String(idx++).padStart(3, "0")}`,
-        route_id: path.routeId,
-        trip_id: path.tripId,
+        route_id: routeId,
+        trip_id: dirPath.tripId,
         latitude: pos.lat,
         longitude: pos.lon,
-        heading: pos.heading,
+        heading: goingForward ? pos.heading : (pos.heading + 180) % 360,
         speed: BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4),
         timestamp: Date.now(),
-        route_color: path.routeColor,
-        route_name: path.routeName,
-        progress,
+        route_color: dirPath.routeColor,
+        route_name: dirPath.routeName,
+        progress: effectiveProgress,
         next_stop_name: nextStop?.name || "",
         next_stop_id: nextStop?.stopId || "",
         eta_minutes: Math.round(eta),
         status: Math.random() < 0.1 ? "at_stop" : "in_transit",
         passengers: Math.floor(Math.random() * 50) + 5,
-        direction_id: path.directionId,
-        moving_forward: true,
+        direction_id: dirPath.directionId,
+        moving_forward: goingForward,
       });
     }
   }
   return buses;
 }
 
-// ─── Update bus positions (with operating hours awareness) ───────────────────
+// ─── Update bus positions (with round-trip & operating hours) ────────────────
 
 function updateBuses(state: BusState): SimulatedBus[] {
   const fleetFraction = getFleetFraction();
-
-  // If service has ended, return empty
   if (fleetFraction <= 0) return [];
 
   const pathMap = new Map<string, RoutePath>();
   for (const p of state.paths) pathMap.set(`${p.routeId}_${p.directionId}`, p);
 
+  // Also group by routeId for direction switching
+  const routePaths = new Map<string, RoutePath[]>();
+  for (const p of state.paths) {
+    const arr = routePaths.get(p.routeId) || [];
+    arr.push(p);
+    routePaths.set(p.routeId, arr);
+  }
+
   const elapsed = (Date.now() - state.lastUpdate) / 1000;
   const sm = getSpeedMultiplier();
 
-  // During ramp-down, progressively remove buses that reach terminus
+  // During ramp-down, progressively remove buses
   const targetCount = Math.max(1, Math.round(state.buses.length * fleetFraction));
   let activeBuses = state.buses;
 
-  // If we need fewer buses (evening), only keep a subset
   if (fleetFraction < 1 && activeBuses.length > targetCount) {
-    // Keep buses that are mid-route, park ones at terminus
     const midRoute = activeBuses.filter(b => b.progress > 0.05 && b.progress < 0.95);
     const atEnds = activeBuses.filter(b => b.progress <= 0.05 || b.progress >= 0.95);
     activeBuses = [...midRoute, ...atEnds.slice(0, Math.max(0, targetCount - midRoute.length))];
@@ -405,48 +437,96 @@ function updateBuses(state: BusState): SimulatedBus[] {
 
   return activeBuses.map((bus) => {
     let directionId = bus.direction_id;
+    let movingForward = bus.moving_forward;
     const path = pathMap.get(`${bus.route_id}_${directionId}`);
     if (!path || path.totalDistance < 0.1) return { ...bus, timestamp: Date.now() };
 
     const speed = BASE_SPEED_KMH * sm * (0.8 + Math.random() * 0.4);
     const distKm = (speed * elapsed) / 3600;
     const progressDelta = distKm / path.totalDistance;
-    let newProgress = bus.progress + progressDelta;
+
+    // Move forward or backward based on direction
+    let newProgress = movingForward
+      ? bus.progress + progressDelta
+      : bus.progress - progressDelta;
 
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
+    // Reached the END of route (outbound terminus)
     if (newProgress >= 0.995) {
-      // During ramp-down, buses that reach terminus are "parked" (removed next cycle)
       if (fleetFraction < 0.5 && !wasAtStop) {
-        newProgress = 1.0;
-        newStatus = "at_stop";
-        // This bus won't restart — it'll be filtered out next update
         return { ...bus, progress: 1.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
       }
 
       if (!wasAtStop) {
+        // Stop briefly at terminus before turning around
         newProgress = 1.0;
         newStatus = "at_stop";
       } else {
-        const oppositeDir = directionId === "0" ? "1" : "0";
-        const oppositePath = pathMap.get(`${bus.route_id}_${oppositeDir}`);
-        if (oppositePath) directionId = oppositeDir;
-        newProgress = 0.0;
+        // Turn around: try opposite direction path, else reverse on same path
+        const rpaths = routePaths.get(bus.route_id) || [];
+        const oppositePath = rpaths.find(p => p.directionId !== directionId);
+        if (oppositePath) {
+          directionId = oppositePath.directionId;
+          movingForward = true;
+          newProgress = 0.0;
+        } else {
+          // No opposite direction — reverse along the same path
+          movingForward = false;
+          newProgress = 1.0 - progressDelta;
+        }
         newStatus = "in_transit";
       }
-    } else {
-      const nearStop = path.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
-      if (nearStop && !wasAtStop && Math.random() < 0.4) {
+    }
+    // Reached the START of route (return terminus)
+    else if (newProgress <= 0.005) {
+      if (fleetFraction < 0.5 && !wasAtStop) {
+        return { ...bus, progress: 0.0, speed: 0, status: "at_stop" as const, timestamp: Date.now() };
+      }
+
+      if (!wasAtStop) {
+        newProgress = 0.0;
         newStatus = "at_stop";
-        newProgress = bus.progress;
+      } else {
+        // Turn around: try opposite direction path, else reverse on same path
+        const rpaths = routePaths.get(bus.route_id) || [];
+        const oppositePath = rpaths.find(p => p.directionId !== directionId);
+        if (oppositePath) {
+          directionId = oppositePath.directionId;
+          movingForward = true;
+          newProgress = 0.0;
+        } else {
+          // No opposite direction — reverse forward on same path
+          movingForward = true;
+          newProgress = progressDelta;
+        }
+        newStatus = "in_transit";
+      }
+    }
+    // Mid-route: check for intermediate stops
+    else {
+      const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
+      const nearStop = activePath.stops.find((s) => Math.abs(s.distanceAlong - newProgress) < 0.005);
+      if (nearStop && !wasAtStop && Math.random() < 0.3) {
+        newStatus = "at_stop";
+        newProgress = bus.progress; // stay at stop
       }
     }
 
     const activePath = pathMap.get(`${bus.route_id}_${directionId}`) || path;
-    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, newProgress);
-    const nextStop = activePath.stops.find((s) => s.distanceAlong > newProgress) || activePath.stops[0];
-    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - newProgress) * activePath.totalDistance : 0;
+    const clampedProgress = Math.max(0, Math.min(1, newProgress));
+    const pos = interpolateAlongPath(activePath.points, activePath.segmentDistances, activePath.totalDistance, clampedProgress);
+
+    // Heading: flip 180° when going in reverse
+    const heading = movingForward ? pos.heading : (pos.heading + 180) % 360;
+
+    // Next stop depends on direction of travel
+    const nextStop = movingForward
+      ? activePath.stops.find((s) => s.distanceAlong > clampedProgress) || activePath.stops[activePath.stops.length - 1]
+      : [...activePath.stops].reverse().find((s) => s.distanceAlong < clampedProgress) || activePath.stops[0];
+
+    const distToNext = nextStop ? Math.abs(nextStop.distanceAlong - clampedProgress) * activePath.totalDistance : 0;
     const eta = distToNext > 0 ? (distToNext / speed) * 60 : 0;
     const pDelta = newStatus === "at_stop" ? Math.floor(Math.random() * 8 - 3) : 0;
 
@@ -454,17 +534,17 @@ function updateBuses(state: BusState): SimulatedBus[] {
       ...bus,
       latitude: pos.lat,
       longitude: pos.lon,
-      heading: pos.heading,
+      heading,
       speed: newStatus === "at_stop" ? 0 : speed,
       timestamp: Date.now(),
-      progress: newProgress,
+      progress: clampedProgress,
       direction_id: directionId,
       next_stop_name: nextStop?.name || bus.next_stop_name,
       next_stop_id: nextStop?.stopId || bus.next_stop_id,
       eta_minutes: Math.round(eta),
       status: newStatus,
       passengers: Math.max(0, Math.min(60, bus.passengers + pDelta)),
-      moving_forward: true,
+      moving_forward: movingForward,
     };
   });
 }
@@ -547,20 +627,31 @@ Deno.serve(async (req) => {
     // Check operating hours first
     const fleetFraction = getFleetFraction();
     if (fleetFraction <= 0) {
-      // Service is not running — compute exact resume timestamp (Tirana = Europe/Tirane, UTC+1/+2)
-      const now = new Date();
-      const resume = new Date(now);
-      resume.setHours(SERVICE_START_HOUR, 0, 0, 0);
-      // If we're past service start today, resume is tomorrow
-      if (now.getHours() >= SERVICE_START_HOUR) {
-        resume.setDate(resume.getDate() + 1);
+      // Service is not running — compute resume time in Tirana timezone
+      const tiranaNow = getTiranaTime();
+      const tiranaHour = tiranaNow.getHours();
+
+      // Next service start: today at 5:00 if before 5am, otherwise tomorrow 5:00
+      const resumeLocal = new Date(tiranaNow);
+      resumeLocal.setHours(SERVICE_START_HOUR, 0, 0, 0);
+      if (tiranaHour >= SERVICE_START_HOUR) {
+        resumeLocal.setDate(resumeLocal.getDate() + 1);
       }
+
+      // Convert Tirana local back to UTC for ISO string
+      // Get the offset: Tirana is UTC+1 (CET) or UTC+2 (CEST)
+      const nowUtc = new Date();
+      const tiranaOffset = (tiranaNow.getTime() - nowUtc.getTime()); // approximate ms offset
+      const resumeUtc = new Date(resumeLocal.getTime() - tiranaOffset + nowUtc.getTime() - tiranaNow.getTime());
+      // Simpler: just send the local time as a string for the client
+      const resumeIso = `${resumeLocal.getFullYear()}-${String(resumeLocal.getMonth() + 1).padStart(2, "0")}-${String(resumeLocal.getDate()).padStart(2, "0")}T${String(SERVICE_START_HOUR).padStart(2, "0")}:00:00+01:00`;
+
       return new Response(JSON.stringify({
         buses: [],
         cached: false,
         serviceStatus: "night",
         message: `Shërbimi i autobusëve nuk është aktiv.`,
-        resumesAt: resume.toISOString(),
+        resumesAt: resumeIso,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
