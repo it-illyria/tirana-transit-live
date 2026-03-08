@@ -468,6 +468,42 @@ const MapView = () => {
         >
           <Layers className="w-5 h-5" />
         </button>
+
+        {/* Congestion Legend */}
+        {showCongestion && (
+          <div className="absolute top-3 left-3 z-[1000] glass-surface rounded-xl shadow-float p-3 max-w-[180px]">
+            <div className="text-xs font-bold text-foreground mb-2">Traffic Conditions</div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#22c55e" }} />
+                <span className="text-[11px] text-foreground font-medium">Low traffic</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#eab308" }} />
+                <span className="text-[11px] text-foreground font-medium">Moderate congestion</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#ef4444" }} />
+                <span className="text-[11px] text-foreground font-medium">Heavy congestion</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: "#111111" }} />
+                <span className="text-[11px] text-foreground font-medium">Severe congestion</span>
+              </div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-border">
+              <div className="text-[10px] text-muted-foreground">
+                {new Date().getHours() >= 7 && new Date().getHours() <= 9
+                  ? "🕐 Morning rush hour"
+                  : new Date().getHours() >= 17 && new Date().getHours() <= 19
+                  ? "🕐 Evening rush hour"
+                  : new Date().getHours() >= 22 || new Date().getHours() <= 5
+                  ? "🌙 Low traffic period"
+                  : "🕐 Normal traffic"}
+              </div>
+            </div>
+          </div>
+        )}
       </MapContainer>
     </div>
   );
