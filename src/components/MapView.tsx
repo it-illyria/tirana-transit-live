@@ -607,7 +607,7 @@ const MapView = () => {
         {showRouteLegend && (
           <div className="absolute top-3 right-3 z-[1000] glass-surface rounded-xl shadow-float p-3 w-[200px] max-h-[60vh] flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-foreground">Routes</span>
+              <span className="text-xs font-bold text-foreground">{t.routesLabel}</span>
               <button
                 onClick={() => {
                   if (hiddenRoutes.size > 0) setHiddenRoutes(new Set());
