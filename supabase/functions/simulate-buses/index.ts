@@ -134,13 +134,12 @@ function interpolateAlongPath(
 const BASE_SPEED_KMH = 18;
 
 // Tirana buses: first departures ~5:00, last departures ~20:30-21:00
-// After 21:00, only remaining return ("kthim") trips finish by ~22:00-22:30
-// By 23:00 all buses are parked
+// After 21:00, only remaining return ("kthim") trips finish by ~23:00-23:30
+// By 23:30 all buses are parked
 const SERVICE_START_HOUR = 5;
 const LAST_DEPARTURE_HOUR = 21;  // last outbound departures
-const SERVICE_END_HOUR = 23;      // absolute end (last return trips finish)
+const SERVICE_END_MIN = 23 * 60 + 30;  // 23:30 absolute end
 const RAMP_UP_MINUTES = 60;       // 5:00-6:00 gradual start
-const RAMP_DOWN_MINUTES = 120;    // 21:00-23:00 gradual wind-down
 
 /** Get current Tirana local time (Europe/Tirane: UTC+1 CET / UTC+2 CEST) */
 function getTiranaTime(): Date {
@@ -162,9 +161,9 @@ function getTiranaTime(): Date {
  * - 5:00-6:00: ramp up 0→1
  * - 6:00-20:00: full service (1.0, 0.8 weekends)
  * - 20:00-21:00: start reducing (0.6-0.3)
- * - 21:00-22:30: only return trips, ~10-20% fleet
- * - 22:30-23:00: last buses parking
- * - 23:00-5:00: no service
+ * - 21:00-23:00: only return trips, ~5-15% fleet
+ * - 23:00-23:30: last buses parking
+ * - 23:30-5:00: no service
  */
 function getFleetFraction(): number {
   const now = getTiranaTime();
@@ -174,7 +173,7 @@ function getFleetFraction(): number {
 
   const startMin = SERVICE_START_HOUR * 60;       // 300
   const lastDepMin = LAST_DEPARTURE_HOUR * 60;    // 1260
-  const endMin = SERVICE_END_HOUR * 60;            // 1380
+  const endMin = SERVICE_END_MIN;                  // 1410 (23:30)
 
   // Dead of night
   if (totalMin < startMin || totalMin >= endMin) return 0;
@@ -191,12 +190,12 @@ function getFleetFraction(): number {
     if (totalMin < lastDepMin) {
       return 0.3 + 0.7 * (1 - (totalMin - eveningStartMin) / 60);
     }
-    // 21:00-22:30: only ~10-15% (return trips)
-    if (totalMin < endMin - 30) {
-      const progress = (totalMin - lastDepMin) / (endMin - 30 - lastDepMin);
+    // 21:00-23:00: only ~5-15% (return trips winding down)
+    if (totalMin < 23 * 60) {
+      const progress = (totalMin - lastDepMin) / (23 * 60 - lastDepMin);
       return Math.max(0.05, 0.15 * (1 - progress));
     }
-    // 22:30-23:00: last few buses finishing
+    // 23:00-23:30: last few buses finishing their return trips
     return 0.03;
   }
 
@@ -910,7 +909,14 @@ Deno.serve(async (req) => {
       }
 
       // Stale – update positions
-      const updatedBuses = updateBuses(state);
+      let updatedBuses = updateBuses(state);
+      
+      // If no buses but service is active, regenerate from GTFS
+      if (updatedBuses.length === 0 && fleetFraction > 0 && state.paths.length > 0) {
+        console.log("No active buses but service is running — regenerating...");
+        updatedBuses = generateBuses(state.paths, state.schedules || []);
+      }
+      
       const newState: BusState = { buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(newState), 300);
 
