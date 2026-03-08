@@ -284,8 +284,8 @@ const MapView = () => {
     return CONGESTION_ZONES.map((zone) => {
       const effectiveFactor = 1 + (zone.baseFactor - 1) * timeMult;
       const level = getCongestionLevel(effectiveFactor);
-      const color = level === "low" ? "#22c55e" : level === "moderate" ? "#eab308" : level === "heavy" ? "#f97316" : "#ef4444";
-      const opacity = level === "low" ? 0.15 : level === "moderate" ? 0.2 : level === "heavy" ? 0.25 : 0.3;
+      const color = level === "low" ? "#22c55e" : level === "moderate" ? "#eab308" : level === "heavy" ? "#ef4444" : "#111111";
+      const opacity = level === "low" ? 0.15 : level === "moderate" ? 0.2 : level === "heavy" ? 0.25 : 0.35;
       return { ...zone, effectiveFactor, level, color, opacity };
     });
   }, [showCongestion]);
