@@ -4,6 +4,7 @@ import { GTFSProvider } from "@/contexts/GTFSContext";
 import MapView from "@/components/MapView";
 import FloatingHeader from "@/components/FloatingHeader";
 import BottomSheet from "@/components/BottomSheet";
+import RouteDetailView from "@/components/RouteDetailView";
 import TripPlannerModal from "@/components/TripPlannerModal";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import OfflineIndicator from "@/components/OfflineIndicator";
