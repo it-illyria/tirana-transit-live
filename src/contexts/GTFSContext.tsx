@@ -126,6 +126,8 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
         setSelectedRouteId,
         selectedBusId,
         setSelectedBusId,
+        focusStopId,
+        setFocusStopId,
         retry: fetchData,
       }}
     >
