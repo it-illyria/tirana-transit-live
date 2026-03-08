@@ -288,17 +288,23 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
     const wasAtStop = bus.status === "at_stop";
     let newStatus: SimulatedBus["status"] = "in_transit";
 
-    // Loop forward continuously on the assigned direction (no reverse backtracking)
-    if (newProgress >= 1) newProgress = newProgress % 1;
-
-    // Check if bus is near a stop
-    const nearStop = path.stops.find(
-      (s) => Math.abs(s.distanceAlong - newProgress) < 0.005
-    );
-    if (nearStop && !wasAtStop && Math.random() < 0.4) {
-      newStatus = "at_stop";
-      // Don't advance progress when at stop
-      newProgress = bus.progress;
+    // When bus reaches the end of the route, hold at terminus then restart
+    if (newProgress >= 0.98) {
+      if (!wasAtStop) {
+        newProgress = 0.99;
+        newStatus = "at_stop";
+      } else {
+        newProgress = 0.01;
+        newStatus = "in_transit";
+      }
+    } else {
+      const nearStop = path.stops.find(
+        (s) => Math.abs(s.distanceAlong - newProgress) < 0.005
+      );
+      if (nearStop && !wasAtStop && Math.random() < 0.4) {
+        newStatus = "at_stop";
+        newProgress = bus.progress;
+      }
     }
 
     const pos = interpolateAlongPath(path.points, path.segmentDistances, path.totalDistance, newProgress);
