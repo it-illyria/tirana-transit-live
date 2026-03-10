@@ -547,8 +547,8 @@ function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): Simulate
     
     let count: number;
     if (fleetFraction >= 0.8) {
-      // Full service: each route gets 4-6 buses to reach 80-100+ total
-      const maxCount = Math.min(4 + Math.floor(rpaths[0].totalDistance / 4), 7);
+      // Full service: each route gets 3-5 buses to reach ~80-100 total
+      const maxCount = Math.min(3 + Math.floor(rpaths[0].totalDistance / 5), 5);
       count = Math.max(3, Math.round(maxCount * fleetFraction));
     } else {
       // Reduced service: only routes with actual schedule get buses
