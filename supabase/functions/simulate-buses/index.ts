@@ -974,7 +974,7 @@ Deno.serve(async (req) => {
 
     console.log(`Built ${schedules.length} route schedules, ${paths.length} paths`);
 
-    const state: BusState = { buses, paths, schedules, lastUpdate: Date.now() };
+    const state: BusState = { version: STATE_VERSION, buses, paths, schedules, lastUpdate: Date.now() };
     await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(state), 300);
 
     return new Response(JSON.stringify({
