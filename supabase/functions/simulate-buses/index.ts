@@ -931,9 +931,10 @@ Deno.serve(async (req) => {
       // Stale – update positions
       let updatedBuses = updateBuses(state);
       
-      // If no buses but service is active, regenerate from GTFS
-      if (updatedBuses.length === 0 && fleetFraction > 0 && state.paths.length > 0) {
-        console.log("No active buses but service is running — regenerating...");
+      // If no buses but service is active, or if bus count is significantly lower than expected, regenerate
+      const expectedMinBuses = fleetFraction >= 0.8 ? 80 : 0;
+      if ((updatedBuses.length === 0 || (expectedMinBuses > 0 && updatedBuses.length < expectedMinBuses * 0.7)) && fleetFraction > 0 && state.paths.length > 0) {
+        console.log(`Bus count (${updatedBuses.length}) below expected (${expectedMinBuses}) — regenerating...`);
         updatedBuses = generateBuses(state.paths, state.schedules || []);
       }
       
