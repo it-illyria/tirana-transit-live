@@ -413,7 +413,7 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   const selected = candidates.slice(0, maxRoutes);
   for (const c of selected) {
     const busCount = fleetFraction >= 0.5
-      ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
+      ? Math.min(6, Math.max(2, Math.ceil(c.trips / 2)))
       : 1;
     active.set(c.routeId, busCount);
   }
