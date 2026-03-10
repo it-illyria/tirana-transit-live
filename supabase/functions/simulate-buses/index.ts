@@ -413,7 +413,7 @@ function getActiveRoutes(schedules: RouteSchedule[], fleetFraction: number): Map
   const selected = candidates.slice(0, maxRoutes);
   for (const c of selected) {
     const busCount = fleetFraction >= 0.5
-      ? Math.min(4, Math.max(1, Math.ceil(c.trips / 3)))
+      ? Math.min(6, Math.max(2, Math.ceil(c.trips / 2)))
       : 1;
     active.set(c.routeId, busCount);
   }
@@ -545,8 +545,9 @@ function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): Simulate
     let count: number;
     if (fleetFraction >= 0.8) {
       // Full service: use distance-based count scaled by fleet fraction
-      const maxCount = Math.min(2 + Math.floor(rpaths[0].totalDistance / 5), 4);
-      count = Math.max(1, Math.round(maxCount * fleetFraction));
+      // Each route gets 3-6 buses depending on route length, to reach 80+ total
+      const maxCount = Math.min(3 + Math.floor(rpaths[0].totalDistance / 3), 6);
+      count = Math.max(2, Math.round(maxCount * fleetFraction));
     } else {
       // Reduced service: only routes with actual schedule get buses
       if (!scheduledCount) continue; // Skip routes with no scheduled service now
