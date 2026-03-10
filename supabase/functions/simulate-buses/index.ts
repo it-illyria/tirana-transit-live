@@ -52,7 +52,7 @@ interface RouteSchedule {
   lastDepartureHour: number;
 }
 
-const STATE_VERSION = 3; // Bump to force regeneration
+const STATE_VERSION = 4; // Bump to force regeneration
 
 interface BusState {
   version?: number;
