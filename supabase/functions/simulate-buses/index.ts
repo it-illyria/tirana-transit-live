@@ -52,7 +52,10 @@ interface RouteSchedule {
   lastDepartureHour: number;
 }
 
+const STATE_VERSION = 4; // Bump to force regeneration
+
 interface BusState {
+  version?: number;
   buses: SimulatedBus[];
   paths: RoutePath[];
   schedules: RouteSchedule[];
@@ -544,10 +547,9 @@ function generateBuses(paths: RoutePath[], schedules: RouteSchedule[]): Simulate
     
     let count: number;
     if (fleetFraction >= 0.8) {
-      // Full service: use distance-based count scaled by fleet fraction
-      // Each route gets 3-6 buses depending on route length, to reach 80+ total
-      const maxCount = Math.min(3 + Math.floor(rpaths[0].totalDistance / 3), 6);
-      count = Math.max(2, Math.round(maxCount * fleetFraction));
+      // Full service: each route gets 3-5 buses to reach ~80-100 total
+      const maxCount = Math.min(3 + Math.floor(rpaths[0].totalDistance / 5), 5);
+      count = Math.max(3, Math.round(maxCount * fleetFraction));
     } else {
       // Reduced service: only routes with actual schedule get buses
       if (!scheduledCount) continue; // Skip routes with no scheduled service now
@@ -916,29 +918,34 @@ Deno.serve(async (req) => {
       const state: BusState = JSON.parse(cached);
       const age = Date.now() - state.lastUpdate;
 
+      // Force regeneration if state version is outdated
+      if (state.version !== STATE_VERSION && state.paths.length > 0) {
+        console.log(`State version ${state.version} → ${STATE_VERSION}, regenerating buses...`);
+        const newBuses = generateBuses(state.paths, state.schedules || []);
+        const newState: BusState = { version: STATE_VERSION, buses: newBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
+        await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(newState), 300);
+        return new Response(JSON.stringify({
+          buses: newBuses, cached: false, age: 0, source: "simulation", serviceStatus: "active", fleetFraction,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       if (age < 8000) {
         return new Response(JSON.stringify({
-          buses: state.buses,
-          cached: true,
-          age,
-          source: "simulation",
-          serviceStatus: "active",
-          fleetFraction,
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          buses: state.buses, cached: true, age, source: "simulation", serviceStatus: "active", fleetFraction,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       // Stale – update positions
       let updatedBuses = updateBuses(state);
       
-      // If no buses but service is active, regenerate from GTFS
-      if (updatedBuses.length === 0 && fleetFraction > 0 && state.paths.length > 0) {
-        console.log("No active buses but service is running — regenerating...");
+      // If bus count too low, regenerate
+      const expectedMinBuses = fleetFraction >= 0.8 ? 80 : 0;
+      if ((updatedBuses.length === 0 || (expectedMinBuses > 0 && updatedBuses.length < expectedMinBuses * 0.7)) && fleetFraction > 0 && state.paths.length > 0) {
+        console.log(`Bus count (${updatedBuses.length}) below expected (${expectedMinBuses}) — regenerating...`);
         updatedBuses = generateBuses(state.paths, state.schedules || []);
       }
       
-      const newState: BusState = { buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
+      const newState: BusState = { version: STATE_VERSION, buses: updatedBuses, paths: state.paths, schedules: state.schedules || [], lastUpdate: Date.now() };
       await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(newState), 300);
 
       return new Response(JSON.stringify({
@@ -967,7 +974,7 @@ Deno.serve(async (req) => {
 
     console.log(`Built ${schedules.length} route schedules, ${paths.length} paths`);
 
-    const state: BusState = { buses, paths, schedules, lastUpdate: Date.now() };
+    const state: BusState = { version: STATE_VERSION, buses, paths, schedules, lastUpdate: Date.now() };
     await redisSet(REDIS_URL, REDIS_TOKEN, "bus_state_v2", JSON.stringify(state), 300);
 
     return new Response(JSON.stringify({
