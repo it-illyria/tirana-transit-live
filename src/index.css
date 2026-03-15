@@ -155,7 +155,14 @@ All colors MUST be HSL.
   border-radius: 0 0 var(--radius) var(--radius) !important;
 }
 
-/* Smooth bus marker movement */
+/* Bus markers: ensure visibility and smooth movement */
 .leaflet-marker-icon.bus-marker {
   transition: transform 1.5s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+  overflow: visible !important;
+  z-index: 1000 !important;
+}
+
+/* Stop markers: lower z-index so buses render on top */
+.leaflet-marker-icon.stop-marker {
+  z-index: 500 !important;
 }
