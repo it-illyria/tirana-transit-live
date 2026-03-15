@@ -571,7 +571,7 @@ const MapView = () => {
             position={[bus.latitude, bus.longitude]}
             icon={createBusIcon(bus.route_color, bus.heading, bus.moving_forward ? "Vajtje" : "Kthim")}
             zIndexOffset={1000}
-            <Popup>
+          >
               <div style={{ minWidth: 160 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                   <span style={{
