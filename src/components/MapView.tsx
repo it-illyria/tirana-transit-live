@@ -443,7 +443,7 @@ const MapView = () => {
     );
   }, [data, bounds]);
 
-  // Only show buses in viewport
+  // Only show buses in viewport (with padding to avoid edge clipping)
   const visibleBuses = useMemo(() => {
     let filtered = buses;
     if (hiddenRoutes.size > 0) {
@@ -453,8 +453,15 @@ const MapView = () => {
       filtered = filtered.filter((b) => b.direction_id === directionFilter);
     }
     if (!bounds) return filtered;
+    // Pad bounds by ~10% to avoid markers disappearing at edges
+    const padLat = (bounds.getNorth() - bounds.getSouth()) * 0.1;
+    const padLng = (bounds.getEast() - bounds.getWest()) * 0.1;
+    const paddedBounds = L.latLngBounds(
+      [bounds.getSouth() - padLat, bounds.getWest() - padLng],
+      [bounds.getNorth() + padLat, bounds.getEast() + padLng]
+    );
     return filtered.filter((b) =>
-      bounds.contains([b.latitude, b.longitude])
+      paddedBounds.contains([b.latitude, b.longitude])
     );
   }, [buses, bounds, hiddenRoutes, directionFilter]);
 
@@ -563,6 +570,7 @@ const MapView = () => {
             key={bus.vehicle_id}
             position={[bus.latitude, bus.longitude]}
             icon={createBusIcon(bus.route_color, bus.heading, bus.moving_forward ? "Vajtje" : "Kthim")}
+            zIndexOffset={1000}
           >
             <Popup>
               <div style={{ minWidth: 160 }}>
