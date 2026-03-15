@@ -52,7 +52,18 @@ interface RouteSchedule {
   lastDepartureHour: number;
 }
 
-const STATE_VERSION = 4; // Bump to force regeneration
+const STATE_VERSION = 5; // Bump to force regeneration
+
+// Routes known to have higher fleet counts (based on Google Maps observations)
+const HIGH_DENSITY_ROUTES: Record<string, number> = {
+  "5B": 7,
+  "5A": 6,
+  "1A": 5,
+  "1B": 5,
+  "2": 5,
+  "3A": 5,
+  "4": 5,
+};
 
 interface BusState {
   version?: number;
