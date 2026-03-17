@@ -82,14 +82,22 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch bus positions from server
+  // Fetch bus positions from server with retry + exponential backoff for 503
   const fetchBuses = useCallback(async () => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/simulate-buses`);
-      if (!res.ok) {
-        console.error("Bus fetch failed:", res.status);
-        return;
-      }
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/simulate-buses`);
+        if (res.status === 503 && attempt < MAX_RETRIES) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.warn(`Bus fetch 503, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        if (!res.ok) {
+          console.error("Bus fetch failed:", res.status);
+          return;
+        }
       const json = await res.json();
       if (json.serviceStatus === "night") {
         setBuses([]);
