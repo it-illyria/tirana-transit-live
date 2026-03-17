@@ -98,34 +98,42 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
           console.error("Bus fetch failed:", res.status);
           return;
         }
-      const json = await res.json();
-      if (json.serviceStatus === "night") {
-        setBuses([]);
-        setRefreshStatus({
-          lastRefresh: Date.now(),
-          cached: false,
-          age: null,
-          busCount: 0,
-          serviceStatus: "night",
-          serviceMessage: json.message || "Shërbimi nuk është aktiv.",
-          resumesAt: json.resumesAt,
-        });
-        return;
+        const json = await res.json();
+        if (json.serviceStatus === "night") {
+          setBuses([]);
+          setRefreshStatus({
+            lastRefresh: Date.now(),
+            cached: false,
+            age: null,
+            busCount: 0,
+            serviceStatus: "night",
+            serviceMessage: json.message || "Shërbimi nuk është aktiv.",
+            resumesAt: json.resumesAt,
+          });
+          return;
+        }
+        if (json.buses && Array.isArray(json.buses)) {
+          setBuses(json.buses);
+          setRefreshStatus({
+            lastRefresh: Date.now(),
+            cached: !!json.cached,
+            age: json.age ?? null,
+            busCount: json.buses.length,
+            serviceStatus: "active",
+            source: json.source || "simulation",
+            fleetFraction: json.fleetFraction ?? 1,
+          });
+        }
+        return; // success, exit retry loop
+      } catch (e) {
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.warn(`Bus poll error, retrying in ${delay}ms`, e);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.error("Bus poll error after retries:", e);
+        }
       }
-      if (json.buses && Array.isArray(json.buses)) {
-        setBuses(json.buses);
-        setRefreshStatus({
-          lastRefresh: Date.now(),
-          cached: !!json.cached,
-          age: json.age ?? null,
-          busCount: json.buses.length,
-          serviceStatus: "active",
-          source: json.source || "simulation",
-          fleetFraction: json.fleetFraction ?? 1,
-        });
-      }
-    } catch (e) {
-      console.error("Bus poll error:", e);
     }
   }, []);
 
