@@ -636,7 +636,9 @@ const MapView = () => {
               </div>
             </Popup>
           </Marker>
-        ))}
+            );
+          });
+        })()}
 
         {/* Traffic congestion on routes */}
         {trafficRouteSegments.map((seg, i) => (
