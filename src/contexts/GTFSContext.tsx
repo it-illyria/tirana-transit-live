@@ -82,42 +82,58 @@ export function GTFSProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch bus positions from server
+  // Fetch bus positions from server with retry + exponential backoff for 503
   const fetchBuses = useCallback(async () => {
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/simulate-buses`);
-      if (!res.ok) {
-        console.error("Bus fetch failed:", res.status);
-        return;
+    const MAX_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/simulate-buses`);
+        if (res.status === 503 && attempt < MAX_RETRIES) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.warn(`Bus fetch 503, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        if (!res.ok) {
+          console.error("Bus fetch failed:", res.status);
+          return;
+        }
+        const json = await res.json();
+        if (json.serviceStatus === "night") {
+          setBuses([]);
+          setRefreshStatus({
+            lastRefresh: Date.now(),
+            cached: false,
+            age: null,
+            busCount: 0,
+            serviceStatus: "night",
+            serviceMessage: json.message || "Shërbimi nuk është aktiv.",
+            resumesAt: json.resumesAt,
+          });
+          return;
+        }
+        if (json.buses && Array.isArray(json.buses)) {
+          setBuses(json.buses);
+          setRefreshStatus({
+            lastRefresh: Date.now(),
+            cached: !!json.cached,
+            age: json.age ?? null,
+            busCount: json.buses.length,
+            serviceStatus: "active",
+            source: json.source || "simulation",
+            fleetFraction: json.fleetFraction ?? 1,
+          });
+        }
+        return; // success, exit retry loop
+      } catch (e) {
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          console.warn(`Bus poll error, retrying in ${delay}ms`, e);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.error("Bus poll error after retries:", e);
+        }
       }
-      const json = await res.json();
-      if (json.serviceStatus === "night") {
-        setBuses([]);
-        setRefreshStatus({
-          lastRefresh: Date.now(),
-          cached: false,
-          age: null,
-          busCount: 0,
-          serviceStatus: "night",
-          serviceMessage: json.message || "Shërbimi nuk është aktiv.",
-          resumesAt: json.resumesAt,
-        });
-        return;
-      }
-      if (json.buses && Array.isArray(json.buses)) {
-        setBuses(json.buses);
-        setRefreshStatus({
-          lastRefresh: Date.now(),
-          cached: !!json.cached,
-          age: json.age ?? null,
-          busCount: json.buses.length,
-          serviceStatus: "active",
-          source: json.source || "simulation",
-          fleetFraction: json.fleetFraction ?? 1,
-        });
-      }
-    } catch (e) {
-      console.error("Bus poll error:", e);
     }
   }, []);
 
