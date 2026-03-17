@@ -298,7 +298,7 @@ export function updateBusPositions(buses: SimulatedBus[], data: GTFSData): Simul
         if (oppositePath) {
           directionId = oppositeDir;
         }
-        newProgress = 0.0;
+        newProgress = progressDelta * 3; // jump past terminus zone to avoid re-trigger
         newStatus = "in_transit";
       }
     } else {
