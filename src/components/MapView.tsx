@@ -564,11 +564,35 @@ const MapView = () => {
           />
         ))}
 
-        {/* Buses */}
-        {visibleBuses.map((bus) => (
+        {/* Buses - offset overlapping markers at same location */}
+        {(() => {
+          // Group buses by rounded position to detect overlaps
+          const positionCounts = new Map<string, number>();
+          const positionIndex = new Map<string, number>();
+          for (const bus of visibleBuses) {
+            const key = `${bus.latitude.toFixed(4)}_${bus.longitude.toFixed(4)}`;
+            positionCounts.set(key, (positionCounts.get(key) || 0) + 1);
+          }
+          return visibleBuses.map((bus) => {
+            const key = `${bus.latitude.toFixed(4)}_${bus.longitude.toFixed(4)}`;
+            const count = positionCounts.get(key) || 1;
+            const idx = positionIndex.get(key) || 0;
+            positionIndex.set(key, idx + 1);
+            
+            // Offset overlapping buses in a circle around the point
+            let lat = bus.latitude;
+            let lon = bus.longitude;
+            if (count > 1) {
+              const angle = (idx / count) * 2 * Math.PI;
+              const offsetDeg = 0.0003; // ~30m offset
+              lat += Math.cos(angle) * offsetDeg;
+              lon += Math.sin(angle) * offsetDeg;
+            }
+            
+            return (
           <Marker
             key={bus.vehicle_id}
-            position={[bus.latitude, bus.longitude]}
+            position={[lat, lon]}
             icon={createBusIcon(bus.route_color, bus.heading, bus.moving_forward ? "Vajtje" : "Kthim")}
             zIndexOffset={1000}
           >
@@ -612,7 +636,9 @@ const MapView = () => {
               </div>
             </Popup>
           </Marker>
-        ))}
+            );
+          });
+        })()}
 
         {/* Traffic congestion on routes */}
         {trafficRouteSegments.map((seg, i) => (
